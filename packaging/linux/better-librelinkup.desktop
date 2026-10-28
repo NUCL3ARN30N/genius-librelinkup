@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=Better LibreLinkUp
+GenericName=Glucose monitor
+Comment=Shows your FreeStyle Libre glucose from LibreLinkUp in the tray
+Exec=better-librelinkup
+Icon=better-librelinkup
+Terminal=false
+Categories=Utility;MedicalSoftware;
+Keywords=glucose;diabetes;libre;cgm;librelinkup;
+StartupWMClass=better-librelinkup

@@ -1,0 +1,40 @@
+# build output
+target/
+/dist
+**/*.rs.bk
+*.tmp
+
+# secrets: Docker secret files, env files, keys and certificates
+server/llu_password.txt
+server/data_passphrase.txt
+*.secret
+.env
+.env.*
+*.env
+!*.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+
+# runtime data: bllu-server data directory (TLS key, client tokens, pairing codes, audit log,
+# readings) and the app's log, settings and logs from BLLU_HOME / test runs
+data/
+*.bllu
+vault.json
+app-logs/
+*.log
+
+# exported readings are personal health data
+*.csv
+
+# editors, OS and sync clients
+.idea/
+.vscode/
+*.swp
+.DS_Store
+Thumbs.db
+desktop.ini
+.sync_*.db*
+.owncloudsync.log
+* (conflicted copy *

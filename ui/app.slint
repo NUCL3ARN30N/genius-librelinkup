@@ -1,0 +1,1851 @@
+import { ComboBox, ScrollView, ListView, TextEdit, Palette, Spinner } from "std-widgets.slint";
+import { Theme, Icons, Toast } from "theme.slint";
+import { AppLogo, Card, Title, Caption, NavItem, IconButton, Icon, StatTile, StatItem, Chip, Banner, MButton, Segmented, MSwitch, TextField, Stepper, Swatch, Snackbar } from "components.slint";
+import { GlucoseGraph, AgpChart, DayChart, TirChart, InsightsTable, AxisLabel, Dot, TirRow, Insight, DayCard } from "charts.slint";
+
+export { AxisLabel, Dot, TirRow, Insight, DayCard, StatItem, Theme, Toast }
+
+export struct LogItem {
+    time: string,
+    title: string,
+    status: string,
+    ok: bool,
+    detail: string,
+}
+
+export struct UiSettings {
+    email: string,
+    server-index: int,
+    units: int,
+    poll-seconds: int,
+    target-low: string,
+    target-high: string,
+    notify-low: bool,
+    low-threshold: string,
+    notify-high: bool,
+    high-threshold: string,
+    notify-stale: bool,
+    stale-minutes: int,
+    repeat-minutes: int,
+    log-enabled: bool,
+    log-dir: string,
+    remember-passphrase: bool,
+    dev-mode: bool,
+    start-minimized: bool,
+    autostart: bool,
+    theme: int,
+    product: string,
+    version: string,
+}
+
+export struct UiAppearance {
+    accent: string,
+    very-low: string,
+    low: string,
+    target: string,
+    high: string,
+    very-high: string,
+    corners: int,
+    graph-hours: int,
+    graph-style: int,
+    colored-card: bool,
+    show-stats: bool,
+    tray-shape: int,
+    tray-arrow: bool,
+    tray-text: int,
+    tray-font: int,
+}
+
+export global Dashboard {
+    in property <[string]> patients;
+    in-out property <int> patient-index;
+    in property <string> value: "–";
+    in property <string> unit;
+    in property <string> trend;
+    in property <int> trend-index;
+    in property <string> trend-text;
+    in property <int> level;
+    in property <string> age;
+    in property <bool> stale;
+    in property <string> sensor;
+    in property <string> graph-title: "Last 12 hours";
+    in property <int> graph-style;
+    in property <bool> colored-card: true;
+    in property <bool> show-stats: true;
+    in property <string> line-path;
+    in property <[Dot]> dots;
+    in property <[AxisLabel]> y-labels;
+    in property <[AxisLabel]> x-labels;
+    in property <float> band-top;
+    in property <float> band-bottom;
+    in property <[StatItem]> stats;
+    callback select-patient(int);
+}
+
+export global Reports {
+    in-out property <int> period-index: 1;
+    in property <bool> available;
+    in property <string> unavailable-text;
+    in property <string> title;
+    in property <string> subtitle;
+    in property <[StatItem]> stats;
+    in property <[TirRow]> tir;
+    in property <string> outer-path;
+    in property <string> inner-path;
+    in property <string> median-path;
+    in property <[AxisLabel]> y-labels;
+    in property <[AxisLabel]> x-labels;
+    in property <float> band-top;
+    in property <float> band-bottom;
+    in property <[Insight]> insights;
+    in property <[DayCard]> days;
+    in property <float> day-band-top;
+    in property <float> day-band-bottom;
+    callback period-changed(int);
+
+    // details of one day, opened from the calendar
+    in-out property <bool> detail-open;
+    in property <string> detail-title;
+    in property <string> detail-line;
+    in property <[Dot]> detail-dots;
+    in property <[AxisLabel]> detail-y-labels;
+    in property <[AxisLabel]> detail-x-labels;
+    in property <float> detail-band-top;
+    in property <float> detail-band-bottom;
+    in property <[StatItem]> detail-stats;
+    in property <[TirRow]> detail-tir;
+    // keys of the neighbouring days with data, -1 if there is none
+    in property <int> detail-prev: -1;
+    in property <int> detail-next: -1;
+    callback open-day(int);
+}
+
+export global SettingsBridge {
+    in property <UiSettings> settings;
+    // in-out: the Appearance page writes its edits back here, otherwise reopening the page (it
+    // is re-created on every visit) would show the values from before the edit
+    in-out property <UiAppearance> appearance;
+    in property <[string]> servers;
+    in property <string> store-info;
+    in property <bool> store-encrypted;
+    in property <image> tray-preview;
+    in property <image> tray-preview-actual;
+    in property <int> tray-actual-size: 16;
+    callback save(UiSettings);
+    callback appearance-changed(UiAppearance);
+    callback reset-colors();
+    callback browse-log-dir() -> string;
+    // (current, new); the current passphrase is checked for an encrypted log
+    callback set-passphrase(string, string);
+    callback remove-passphrase(string);
+    callback export-settings();
+    callback import-settings();
+    callback export-csv();
+    callback import-csv();
+    callback open-data-folder();
+    callback logout();
+    in property <string> log-folder;
+    in-out property <bool> wipe-open;
+    // true: also delete the glucose log files
+    callback wipe-data(bool);
+}
+
+export global UpdateBridge {
+    in property <string> current-version;
+    in property <string> install-kind;
+    in property <string> status;
+    in property <bool> available;
+    in property <string> latest-version;
+    in property <string> notes;
+    in property <bool> busy;
+    // 0..1 while downloading, below 0 when idle
+    in property <float> progress: -1;
+    in property <bool> can-install;
+    in-out property <bool> auto-check: true;
+    callback check();
+    callback install();
+    callback skip();
+    callback open-page();
+    callback options-changed(bool);
+}
+
+export global SyncBridge {
+    in property <bool> paired;
+    in property <string> server;
+    in property <string> status;
+    in property <bool> status-error;
+    in property <bool> busy;
+    in-out property <bool> use-as-source: true;
+    callback pair(string, bool);
+    callback unpair();
+    callback sync-now();
+    callback source-changed(bool);
+}
+
+export global DevBridge {
+    in property <[LogItem]> entries;
+    in property <string> log-path;
+    callback clear();
+    callback open-log-folder();
+}
+
+component SettingsSection inherits Card {
+    in property <string> title;
+    in property <string> subtitle;
+    VerticalLayout {
+        padding: 20px;
+        spacing: 14px;
+        VerticalLayout {
+            spacing: 2px;
+            Title { text: root.title; }
+            if root.subtitle != "": Caption { text: root.subtitle; }
+        }
+        @children
+    }
+}
+
+component PageHeader inherits HorizontalLayout {
+    in property <string> title;
+    in property <string> subtitle;
+    spacing: 12px;
+    VerticalLayout {
+        alignment: center;
+        Text {
+            text: root.title;
+            font-size: 28px;
+            color: Theme.on-surface;
+        }
+        if root.subtitle != "": Caption { text: root.subtitle; }
+    }
+    Rectangle { horizontal-stretch: 1; }
+    @children
+}
+
+component DashboardPage inherits Rectangle {
+    callback refresh();
+    in property <string> status;
+    in property <bool> status-error;
+    in property <bool> busy;
+
+    property <color> range-color: Theme.level-color(Dashboard.level);
+    property <bool> filled: Dashboard.colored-card;
+    property <color> card-ink: root.filled ? (Dashboard.level == 4 ? #1b1b1b : #ffffff) : Theme.on-surface;
+    property <color> card-ink-soft: root.filled ? root.card-ink.with-alpha(0.8) : Theme.on-surface-variant;
+
+    VerticalLayout {
+        padding: 24px;
+        spacing: Theme.gap;
+
+        PageHeader {
+            title: "My glucose";
+            if Dashboard.patients.length > 1: ComboBox {
+                y: (parent.height - self.height) / 2;
+                width: 220px;
+                model: Dashboard.patients;
+                current-index <=> Dashboard.patient-index;
+                selected => { Dashboard.select-patient(self.current-index); }
+            }
+            Chip {
+                y: (parent.height - self.height) / 2;
+                text: root.status;
+                error: root.status-error;
+            }
+            if root.busy: Spinner {
+                width: 24px;
+                height: 24px;
+                y: (parent.height - self.height) / 2;
+                indeterminate: true;
+            }
+            IconButton {
+                y: (parent.height - self.height) / 2;
+                icon: Icons.refresh;
+                clicked => { root.refresh(); }
+            }
+        }
+
+        HorizontalLayout {
+            spacing: Theme.gap;
+            height: 196px;
+
+            Card {
+                width: Dashboard.show-stats ? 300px : self.preferred-width;
+                horizontal-stretch: Dashboard.show-stats ? 0 : 1;
+                tone: root.filled ? root.range-color : Theme.surface-container;
+                border-width: root.filled ? 0px : 2px;
+                border-color: root.range-color;
+                animate tone { duration: 300ms; }
+                VerticalLayout {
+                    padding: 20px;
+                    spacing: 2px;
+                    HorizontalLayout {
+                        Text {
+                            text: Dashboard.level == 1 ? "VERY LOW" : Dashboard.level == 2 ? "LOW" : Dashboard.level == 3 ? "IN RANGE" : Dashboard.level == 4 ? "HIGH" : Dashboard.level == 5 ? "VERY HIGH" : "NO DATA";
+                            color: root.filled ? root.card-ink-soft : root.range-color;
+                            font-size: 13px;
+                            font-weight: 700;
+                            letter-spacing: 1px;
+                        }
+                        Text {
+                            text: Dashboard.age;
+                            horizontal-alignment: right;
+                            color: root.card-ink-soft;
+                            font-size: 13px;
+                        }
+                    }
+                    HorizontalLayout {
+                        spacing: 10px;
+                        alignment: start;
+                        Text {
+                            text: Dashboard.value;
+                            font-size: 76px;
+                            font-weight: 700;
+                            color: root.filled ? root.card-ink : root.range-color;
+                            opacity: Dashboard.stale ? 0.5 : 1;
+                        }
+                        VerticalLayout {
+                            alignment: center;
+                            if Dashboard.trend-index > 0: Icon {
+                                width: 48px;
+                                height: 48px;
+                                path: Icons.trend(Dashboard.trend-index);
+                                tint: root.filled ? root.card-ink : root.range-color;
+                            }
+                            Text {
+                                text: Dashboard.unit;
+                                color: root.card-ink-soft;
+                                font-size: 14px;
+                            }
+                        }
+                    }
+                    Text {
+                        text: Dashboard.trend-text;
+                        color: root.card-ink-soft;
+                        font-size: 13px;
+                    }
+                }
+            }
+
+            if Dashboard.show-stats: Card {
+                horizontal-stretch: 1;
+                VerticalLayout {
+                    padding: 20px;
+                    spacing: 12px;
+                    Title { text: "Last 24 hours"; }
+                    HorizontalLayout {
+                        spacing: 24px;
+                        for s in Dashboard.stats: StatTile { item: s; }
+                    }
+                    Rectangle { vertical-stretch: 1; }
+                    HorizontalLayout {
+                        spacing: 8px;
+                        Icon {
+                            path: Icons.sensor;
+                            width: 18px;
+                            height: 18px;
+                        }
+                        Caption {
+                            text: Dashboard.sensor;
+                            vertical-alignment: center;
+                        }
+                    }
+                }
+            }
+        }
+
+        Card {
+            vertical-stretch: 1;
+            min-height: 260px;
+            VerticalLayout {
+                padding: 20px;
+                spacing: 8px;
+                Title { text: Dashboard.graph-title; }
+                GlucoseGraph {
+                    vertical-stretch: 1;
+                    graph-style: Dashboard.graph-style;
+                    line-path: Dashboard.line-path;
+                    dots: Dashboard.dots;
+                    y-labels: Dashboard.y-labels;
+                    x-labels: Dashboard.x-labels;
+                    band-top: Dashboard.band-top;
+                    band-bottom: Dashboard.band-bottom;
+                }
+            }
+        }
+    }
+}
+
+component ReportsPage inherits Rectangle {
+    ScrollView {
+        VerticalLayout {
+            padding: 24px;
+            spacing: Theme.gap;
+
+            PageHeader {
+                title: "Glucose report";
+                subtitle: Reports.subtitle;
+                Segmented {
+                    y: (parent.height - self.height) / 2;
+                    width: 300px;
+                    options: ["7 d", "14 d", "30 d", "90 d"];
+                    selected <=> Reports.period-index;
+                    changed(i) => { Reports.period-changed(i); }
+                }
+            }
+
+            if !Reports.available: Card {
+                height: 120px;
+                VerticalLayout {
+                    padding: 24px;
+                    alignment: center;
+                    Caption {
+                        text: Reports.unavailable-text;
+                        horizontal-alignment: center;
+                        font-size: 14px;
+                    }
+                }
+            }
+
+            if Reports.available: HorizontalLayout {
+                spacing: Theme.gap;
+                Card {
+                    horizontal-stretch: 1;
+                    VerticalLayout {
+                        padding: 20px;
+                        spacing: 14px;
+                        Title { text: "Glucose statistics"; }
+                        for s in Reports.stats: HorizontalLayout {
+                            spacing: 12px;
+                            VerticalLayout {
+                                horizontal-stretch: 1;
+                                Text {
+                                    text: s.label;
+                                    color: Theme.on-surface;
+                                }
+                                if s.hint != "": Caption { text: s.hint; }
+                            }
+                            Text {
+                                text: s.value;
+                                color: Theme.on-surface;
+                                font-size: 18px;
+                                font-weight: 700;
+                                vertical-alignment: center;
+                            }
+                        }
+                    }
+                }
+                Card {
+                    horizontal-stretch: 1;
+                    VerticalLayout {
+                        padding: 20px;
+                        spacing: 14px;
+                        Title { text: "Time in ranges"; }
+                        TirChart {
+                            min-height: 260px;
+                            vertical-stretch: 1;
+                            rows: Reports.tir;
+                        }
+                        Caption { text: "Goals (most adults with type 1/2): target > 70 %, low < 4 %, very low < 1 %, high < 25 %, very high < 5 %."; }
+                    }
+                }
+            }
+
+            if Reports.available: Card {
+                height: 380px;
+                VerticalLayout {
+                    padding: 20px;
+                    spacing: 8px;
+                    Title { text: "Ambulatory glucose profile (AGP)"; }
+                    Caption { text: "Median (line) with 25–75 % (dark) and 5–95 % (light) percentiles, as if all days happened in a single day."; }
+                    AgpChart {
+                        vertical-stretch: 1;
+                        outer-path: Reports.outer-path;
+                        inner-path: Reports.inner-path;
+                        median-path: Reports.median-path;
+                        y-labels: Reports.y-labels;
+                        x-labels: Reports.x-labels;
+                        band-top: Reports.band-top;
+                        band-bottom: Reports.band-bottom;
+                    }
+                }
+            }
+
+            if Reports.available: Card {
+                VerticalLayout {
+                    padding: 20px;
+                    spacing: 12px;
+                    Title { text: "Glucose pattern insights"; }
+                    InsightsTable { rows: Reports.insights; }
+                    Caption { text: "Traffic lights are a simplified, informational approximation of LibreView's pattern insights – not medical advice."; }
+                }
+            }
+
+            if Reports.available && Reports.days.length > 0: Card {
+                VerticalLayout {
+                    padding: 20px;
+                    spacing: 8px;
+                    Title { text: "Daily glucose profiles"; }
+                    Caption { text: "Share of the day in the target range and the course of each day. Click a day for details."; }
+                    HorizontalLayout {
+                        spacing: 8px;
+                        padding-top: 4px;
+                        for name in ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]: Text {
+                            horizontal-stretch: 1;
+                            text: name;
+                            font-size: 12px;
+                            font-weight: 600;
+                            horizontal-alignment: center;
+                            color: Theme.on-surface-variant;
+                        }
+                    }
+                    for row in ceil(Reports.days.length / 7): HorizontalLayout {
+                        spacing: 8px;
+                        height: 84px;
+                        for col in 7: Rectangle {
+                            horizontal-stretch: 1;
+                            property <int> index: row * 7 + col;
+                            if index < Reports.days.length: DayChart {
+                                width: 100%;
+                                height: 100%;
+                                day: Reports.days[index];
+                                band-top: Reports.day-band-top;
+                                band-bottom: Reports.day-band-bottom;
+                                clicked(key) => { Reports.open-day(key); }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+component SettingsPage inherits Rectangle {
+    property <UiSettings> s: SettingsBridge.settings;
+    property <string> current-passphrase;
+    changed s => { self.load(); }
+    init => { self.load(); }
+
+    function load() {
+        server.current-index = s.server-index;
+        units.selected = s.units;
+        theme.selected = s.theme;
+        poll.value = s.poll-seconds;
+        target-low.text = s.target-low;
+        target-high.text = s.target-high;
+        notify-low.checked = s.notify-low;
+        low-th.text = s.low-threshold;
+        notify-high.checked = s.notify-high;
+        high-th.text = s.high-threshold;
+        notify-stale.checked = s.notify-stale;
+        stale-min.value = s.stale-minutes;
+        repeat-min.value = s.repeat-minutes;
+        log-enabled.checked = s.log-enabled;
+        log-dir.text = s.log-dir;
+        remember-pass.checked = s.remember-passphrase;
+        dev-mode.checked = s.dev-mode;
+        start-min.checked = s.start-minimized;
+        autostart.checked = s.autostart;
+        product.text = s.product;
+        version.text = s.version;
+    }
+
+    function collect() -> UiSettings {
+        return {
+            email: s.email,
+            server-index: server.current-index,
+            units: units.selected,
+            poll-seconds: poll.value,
+            target-low: target-low.text,
+            target-high: target-high.text,
+            notify-low: notify-low.checked,
+            low-threshold: low-th.text,
+            notify-high: notify-high.checked,
+            high-threshold: high-th.text,
+            notify-stale: notify-stale.checked,
+            stale-minutes: stale-min.value,
+            repeat-minutes: repeat-min.value,
+            log-enabled: log-enabled.checked,
+            log-dir: log-dir.text,
+            remember-passphrase: remember-pass.checked,
+            dev-mode: dev-mode.checked,
+            start-minimized: start-min.checked,
+            autostart: autostart.checked,
+            theme: theme.selected,
+            product: product.text,
+            version: version.text,
+        };
+    }
+
+    VerticalLayout {
+        PageHeader {
+            padding: 24px;
+            padding-bottom: 8px;
+            title: "Settings";
+            MButton {
+                y: (parent.height - self.height) / 2;
+                text: "Revert";
+                kind: 3;
+                clicked => { root.load(); }
+            }
+            MButton {
+                y: (parent.height - self.height) / 2;
+                text: "Save";
+                kind: 0;
+                icon: Icons.check;
+                clicked => { SettingsBridge.save(root.collect()); }
+            }
+        }
+
+        ScrollView {
+            vertical-stretch: 1;
+            VerticalLayout {
+                padding: 24px;
+                padding-top: 8px;
+                spacing: Theme.gap;
+
+                SettingsSection {
+                    title: "Account";
+                    HorizontalLayout {
+                        spacing: 12px;
+                        Text {
+                            text: s.email != "" ? "Signed in as " + s.email : "Not signed in to LibreLinkUp – values come from the caching server";
+                            color: Theme.on-surface;
+                            vertical-alignment: center;
+                            wrap: word-wrap;
+                        }
+                        Rectangle { horizontal-stretch: 1; }
+                        if s.email != "": MButton {
+                            text: "Sign out";
+                            kind: 2;
+                            clicked => { SettingsBridge.logout(); }
+                        }
+                    }
+                    VerticalLayout {
+                        spacing: 4px;
+                        Caption { text: "LibreLinkUp server – automatic follows Abbott's regional redirects"; }
+                        server := ComboBox { model: SettingsBridge.servers; }
+                    }
+                }
+
+                SettingsSection {
+                    title: "Caching server";
+                    subtitle: "An always-on bllu-server keeps polling while this computer is off and fills the gaps here.";
+                    if !SyncBridge.paired: VerticalLayout {
+                        spacing: 12px;
+                        Caption {
+                            text: "On the server run  bllu-server pair  (Docker: docker exec bllu bllu-server pair) and paste the code. The code pins the server's certificate, so the connection cannot be intercepted.";
+                            font-size: 13px;
+                        }
+                        HorizontalLayout {
+                            spacing: 8px;
+                            pair-code := TextField {
+                                horizontal-stretch: 1;
+                                placeholder: "bllu1:…";
+                            }
+                            VerticalLayout {
+                                alignment: center;
+                                MButton {
+                                    text: "Pair";
+                                    kind: 0;
+                                    enabled: pair-code.text != "" && !SyncBridge.busy;
+                                    clicked => {
+                                        SyncBridge.pair(pair-code.text, source.checked);
+                                        pair-code.text = "";
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    if SyncBridge.paired: HorizontalLayout {
+                        spacing: 12px;
+                        VerticalLayout {
+                            horizontal-stretch: 1;
+                            alignment: center;
+                            Text {
+                                text: SyncBridge.server;
+                                color: Theme.on-surface;
+                                wrap: word-wrap;
+                            }
+                        }
+                        MButton {
+                            text: "Sync now";
+                            kind: 1;
+                            icon: Icons.refresh;
+                            enabled: !SyncBridge.busy;
+                            clicked => { SyncBridge.sync-now(); }
+                        }
+                        MButton {
+                            text: "Unpair";
+                            kind: 3;
+                            clicked => { SyncBridge.unpair(); }
+                        }
+                    }
+                    if SyncBridge.status != "": Text {
+                        text: SyncBridge.status;
+                        color: SyncBridge.status-error ? Theme.error : Theme.on-surface-variant;
+                        font-size: 13px;
+                        wrap: word-wrap;
+                    }
+                    source := MSwitch {
+                        text: "Use the server for live values";
+                        supporting: "This computer then stops polling LibreLinkUp itself – fewer logins on your account.";
+                        checked <=> SyncBridge.use-as-source;
+                        toggled(v) => { SyncBridge.source-changed(v); }
+                    }
+                }
+
+                SettingsSection {
+                    title: "Display";
+                    HorizontalLayout {
+                        spacing: 16px;
+                        VerticalLayout {
+                            spacing: 4px;
+                            horizontal-stretch: 1;
+                            Caption { text: "Units"; }
+                            units := Segmented { options: ["Automatic", "mmol/L", "mg/dL"]; }
+                        }
+                        VerticalLayout {
+                            spacing: 4px;
+                            horizontal-stretch: 1;
+                            Caption { text: "Theme"; }
+                            theme := Segmented { options: ["System", "Light", "Dark"]; }
+                        }
+                    }
+                    HorizontalLayout {
+                        spacing: 16px;
+                        target-low := TextField {
+                            label: "Target range low";
+                            input-type: decimal;
+                        }
+                        target-high := TextField {
+                            label: "Target range high";
+                            input-type: decimal;
+                        }
+                        poll := Stepper {
+                            label: "Refresh every";
+                            suffix: "s";
+                            minimum: 30;
+                            maximum: 900;
+                            step: 30;
+                        }
+                    }
+                    Caption { text: "Values are entered in the unit currently shown (mmol/L or mg/dL)."; }
+                }
+
+                SettingsSection {
+                    title: "Notifications";
+                    HorizontalLayout {
+                        spacing: 16px;
+                        notify-low := MSwitch {
+                            horizontal-stretch: 1;
+                            text: "Low glucose";
+                            supporting: "Notify when the value is at or below the threshold";
+                        }
+                        low-th := TextField {
+                            width: 140px;
+                            input-type: decimal;
+                            enabled: notify-low.checked;
+                        }
+                    }
+                    HorizontalLayout {
+                        spacing: 16px;
+                        notify-high := MSwitch {
+                            horizontal-stretch: 1;
+                            text: "High glucose";
+                            supporting: "Notify when the value is at or above the threshold";
+                        }
+                        high-th := TextField {
+                            width: 140px;
+                            input-type: decimal;
+                            enabled: notify-high.checked;
+                        }
+                    }
+                    HorizontalLayout {
+                        spacing: 16px;
+                        notify-stale := MSwitch {
+                            horizontal-stretch: 1;
+                            text: "No new data";
+                            supporting: "Notify when no reading arrived for a while";
+                        }
+                        stale-min := Stepper {
+                            width: 140px;
+                            suffix: "min";
+                            minimum: 5;
+                            maximum: 240;
+                            step: 5;
+                            enabled: notify-stale.checked;
+                        }
+                    }
+                    HorizontalLayout {
+                        spacing: 16px;
+                        VerticalLayout {
+                            horizontal-stretch: 1;
+                            alignment: center;
+                            Text {
+                                text: "Repeat active alerts";
+                                color: Theme.on-surface;
+                            }
+                            Caption { text: "0 = notify only once per episode"; }
+                        }
+                        repeat-min := Stepper {
+                            width: 140px;
+                            suffix: "min";
+                            minimum: 0;
+                            maximum: 240;
+                            step: 5;
+                        }
+                    }
+                }
+
+                SettingsSection {
+                    title: "Glucose log & reports";
+                    log-enabled := MSwitch {
+                        text: "Keep a local log of all readings";
+                        supporting: "Needed for reports and HbA1c – LibreLinkUp only keeps 12 hours";
+                    }
+                    HorizontalLayout {
+                        spacing: 8px;
+                        log-dir := TextField {
+                            horizontal-stretch: 1;
+                            label: "Log folder – choose a synced folder (Nextcloud, OneDrive, …) to share it between machines";
+                            placeholder: "Default data folder";
+                        }
+                        VerticalLayout {
+                            alignment: end;
+                            HorizontalLayout {
+                                spacing: 8px;
+                                MButton {
+                                    text: "Browse…";
+                                    kind: 1;
+                                    clicked => {
+                                        let p = SettingsBridge.browse-log-dir();
+                                        if p != "" { log-dir.text = p; }
+                                    }
+                                }
+                                MButton {
+                                    text: "Open";
+                                    kind: 3;
+                                    icon: Icons.folder;
+                                    clicked => { SettingsBridge.open-data-folder(); }
+                                }
+                            }
+                        }
+                    }
+                    Caption {
+                        text: SettingsBridge.store-info;
+                        font-size: 13px;
+                    }
+                    HorizontalLayout {
+                        spacing: 8px;
+                        if SettingsBridge.store-encrypted: TextField {
+                            horizontal-stretch: 1;
+                            input-type: password;
+                            placeholder: "Current passphrase";
+                            text <=> root.current-passphrase;
+                        }
+                        new-pass := TextField {
+                            horizontal-stretch: 1;
+                            input-type: password;
+                            placeholder: SettingsBridge.store-encrypted ? "New passphrase" : "Passphrase to encrypt the log";
+                        }
+                        VerticalLayout {
+                            alignment: center;
+                            HorizontalLayout {
+                                spacing: 8px;
+                                MButton {
+                                    text: SettingsBridge.store-encrypted ? "Change passphrase" : "Encrypt log";
+                                    kind: 1;
+                                    icon: Icons.lock;
+                                    enabled: new-pass.text != "" && (!SettingsBridge.store-encrypted || root.current-passphrase != "");
+                                    clicked => {
+                                        SettingsBridge.set-passphrase(root.current-passphrase, new-pass.text);
+                                        new-pass.text = "";
+                                        root.current-passphrase = "";
+                                    }
+                                }
+                                if SettingsBridge.store-encrypted: MButton {
+                                    text: "Remove encryption";
+                                    kind: 3;
+                                    enabled: root.current-passphrase != "";
+                                    clicked => {
+                                        SettingsBridge.remove-passphrase(root.current-passphrase);
+                                        root.current-passphrase = "";
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    if SettingsBridge.store-encrypted: Caption {
+                        text: "Changing or removing the passphrase needs the current one.";
+                    }
+                    remember-pass := MSwitch { text: "Remember the log passphrase in the system keychain"; }
+                }
+
+                SettingsSection {
+                    title: "Import & export";
+                    HorizontalLayout {
+                        spacing: 8px;
+                        alignment: start;
+                        MButton {
+                            text: "Export settings…";
+                            kind: 2;
+                            clicked => { SettingsBridge.export-settings(); }
+                        }
+                        MButton {
+                            text: "Import settings…";
+                            kind: 2;
+                            clicked => { SettingsBridge.import-settings(); }
+                        }
+                    }
+                    HorizontalLayout {
+                        spacing: 8px;
+                        alignment: start;
+                        MButton {
+                            text: "Export readings (CSV)…";
+                            kind: 2;
+                            clicked => { SettingsBridge.export-csv(); }
+                        }
+                        MButton {
+                            text: "Import readings (CSV / LibreView)…";
+                            kind: 2;
+                            clicked => { SettingsBridge.import-csv(); }
+                        }
+                    }
+                    Caption { text: "Tip: import a LibreView \"Download glucose data\" CSV to backfill history older than 12 hours."; }
+                }
+
+                SettingsSection {
+                    title: "Updates";
+                    subtitle: "Version " + UpdateBridge.current-version + " · " + UpdateBridge.install-kind;
+                    HorizontalLayout {
+                        spacing: 12px;
+                        VerticalLayout {
+                            horizontal-stretch: 1;
+                            alignment: center;
+                            spacing: 2px;
+                            Text {
+                                text: UpdateBridge.available ? "Version " + UpdateBridge.latest-version + " is available" : UpdateBridge.status;
+                                color: UpdateBridge.available ? Theme.primary : Theme.on-surface;
+                                font-weight: UpdateBridge.available ? 700 : 400;
+                                wrap: word-wrap;
+                            }
+                            if UpdateBridge.available && UpdateBridge.status != "": Caption { text: UpdateBridge.status; }
+                        }
+                        if UpdateBridge.busy && UpdateBridge.progress < 0: Spinner {
+                            width: 24px;
+                            height: 24px;
+                            y: (parent.height - self.height) / 2;
+                            indeterminate: true;
+                        }
+                        MButton {
+                            text: "Check now";
+                            kind: UpdateBridge.available ? 3 : 1;
+                            enabled: !UpdateBridge.busy;
+                            clicked => { UpdateBridge.check(); }
+                        }
+                        if UpdateBridge.available && UpdateBridge.can-install: MButton {
+                            text: "Update now";
+                            kind: 0;
+                            enabled: !UpdateBridge.busy;
+                            clicked => { UpdateBridge.install(); }
+                        }
+                        if UpdateBridge.available: MButton {
+                            text: UpdateBridge.can-install ? "Release page" : "Download";
+                            kind: UpdateBridge.can-install ? 3 : 0;
+                            clicked => { UpdateBridge.open-page(); }
+                        }
+                    }
+                    if UpdateBridge.progress >= 0: Rectangle {
+                        height: 6px;
+                        border-radius: 3px;
+                        background: Theme.surface-container-high;
+                        Rectangle {
+                            x: 0;
+                            width: parent.width * UpdateBridge.progress;
+                            border-radius: 3px;
+                            background: Theme.primary;
+                        }
+                    }
+                    if UpdateBridge.available && UpdateBridge.notes != "": Caption {
+                        text: UpdateBridge.notes;
+                        font-size: 13px;
+                    }
+                    if UpdateBridge.available: HorizontalLayout {
+                        alignment: start;
+                        MButton {
+                            text: "Skip this version";
+                            kind: 3;
+                            clicked => { UpdateBridge.skip(); }
+                        }
+                    }
+                    MSwitch {
+                        text: "Check for updates automatically";
+                        checked <=> UpdateBridge.auto-check;
+                        toggled => { UpdateBridge.options-changed(UpdateBridge.auto-check); }
+                    }
+                }
+
+                SettingsSection {
+                    title: "System";
+                    start-min := MSwitch { text: "Start minimized to tray"; }
+                    autostart := MSwitch { text: "Start when I sign in"; }
+                    dev-mode := MSwitch {
+                        text: "Developer mode";
+                        supporting: "Shows the API log (secrets and personal data redacted)";
+                    }
+                    HorizontalLayout {
+                        spacing: 16px;
+                        product := TextField { label: "Advanced: client product header"; }
+                        version := TextField { label: "Advanced: client version (raised automatically when required)"; }
+                    }
+                }
+
+                SettingsSection {
+                    title: "Delete local data";
+                    subtitle: "Removes everything this app stored on this computer: settings, logs, the keychain entries and, if you choose, the glucose log. The app closes afterwards.";
+                    HorizontalLayout {
+                        alignment: start;
+                        MButton {
+                            text: "Delete all local data…";
+                            kind: 4;
+                            icon: Icons.delete;
+                            clicked => { SettingsBridge.wipe-open = true; }
+                        }
+                    }
+                }
+
+                Caption {
+                    text: "Better LibreLinkUp is an unofficial tool and not affiliated with Abbott. It uses an undocumented API that may change at any time. Do not make treatment decisions based on this app.";
+                }
+            }
+        }
+    }
+}
+
+component ColorRow inherits HorizontalLayout {
+    in property <string> label;
+    in property <color> swatch;
+    in-out property <string> hex <=> field.text;
+    callback edited();
+    spacing: 12px;
+    Swatch {
+        y: (parent.height - self.height) / 2;
+        fill: root.swatch;
+    }
+    Text {
+        width: 110px;
+        text: root.label;
+        vertical-alignment: center;
+        color: Theme.on-surface;
+    }
+    field := TextField {
+        width: 130px;
+        edited => { root.edited(); }
+    }
+}
+
+component AppearancePage inherits Rectangle {
+    property <UiAppearance> a: SettingsBridge.appearance;
+    changed a => { self.load(); }
+    init => { self.load(); }
+
+    property <[string]> presets: ["#1d5fa8", "#00639b", "#006a6a", "#2e7d32", "#6750a4", "#8b4a62", "#b3261e", "#9a5b00", "#5d5f66"];
+    property <[color]> preset-colors: [#1d5fa8, #00639b, #006a6a, #2e7d32, #6750a4, #8b4a62, #b3261e, #9a5b00, #5d5f66];
+
+    function load() {
+        accent.text = a.accent;
+        vlow.hex = a.very-low;
+        low.hex = a.low;
+        target.hex = a.target;
+        high.hex = a.high;
+        vhigh.hex = a.very-high;
+        corners.selected = a.corners;
+        hours.selected = a.graph-hours;
+        gstyle.selected = a.graph-style;
+        colored.checked = a.colored-card;
+        stats.checked = a.show-stats;
+        shape.selected = a.tray-shape;
+        arrow.checked = a.tray-arrow;
+        ink.selected = a.tray-text;
+        font.selected = a.tray-font;
+    }
+
+    function emit() {
+        SettingsBridge.appearance = {
+            accent: accent.text,
+            very-low: vlow.hex,
+            low: low.hex,
+            target: target.hex,
+            high: high.hex,
+            very-high: vhigh.hex,
+            corners: corners.selected,
+            graph-hours: hours.selected,
+            graph-style: gstyle.selected,
+            colored-card: colored.checked,
+            show-stats: stats.checked,
+            tray-shape: shape.selected,
+            tray-arrow: arrow.checked,
+            tray-text: ink.selected,
+            tray-font: font.selected,
+        };
+        SettingsBridge.appearance-changed(SettingsBridge.appearance);
+    }
+
+    ScrollView {
+        VerticalLayout {
+            padding: 24px;
+            spacing: Theme.gap;
+
+            PageHeader {
+                title: "Appearance";
+                subtitle: "Changes apply immediately and are saved automatically.";
+            }
+
+            SettingsSection {
+                title: "Tray icon";
+                HorizontalLayout {
+                    spacing: 24px;
+                    Rectangle {
+                        width: 132px;
+                        height: 132px;
+                        border-radius: Theme.radius-m;
+                        background: Theme.dark ? #202020 : #f3f3f3;
+                        border-width: 1px;
+                        border-color: Theme.outline-variant;
+                        VerticalLayout {
+                            alignment: center;
+                            spacing: 10px;
+                            HorizontalLayout {
+                                alignment: center;
+                                Image {
+                                    width: 64px;
+                                    height: 64px;
+                                    source: SettingsBridge.tray-preview;
+                                    image-rendering: pixelated;
+                                }
+                            }
+                            HorizontalLayout {
+                                alignment: center;
+                                spacing: 6px;
+                                Image {
+                                    width: SettingsBridge.tray-actual-size * 1px;
+                                    height: SettingsBridge.tray-actual-size * 1px;
+                                    source: SettingsBridge.tray-preview-actual;
+                                    image-rendering: pixelated;
+                                }
+                                Caption {
+                                    text: SettingsBridge.tray-actual-size + " px";
+                                    vertical-alignment: center;
+                                }
+                            }
+                        }
+                    }
+                    VerticalLayout {
+                        horizontal-stretch: 1;
+                        spacing: 12px;
+                        VerticalLayout {
+                            spacing: 4px;
+                            Caption { text: "Shape"; }
+                            shape := Segmented {
+                                options: ["Number only", "Drop", "Circle", "Square"];
+                                changed => { root.emit(); }
+                            }
+                        }
+                        HorizontalLayout {
+                            spacing: 16px;
+                            VerticalLayout {
+                                spacing: 4px;
+                                horizontal-stretch: 1;
+                                Caption { text: "Text colour"; }
+                                ink := Segmented {
+                                    options: ["Auto", "White", "Black"];
+                                    changed => { root.emit(); }
+                                }
+                            }
+                            VerticalLayout {
+                                spacing: 4px;
+                                horizontal-stretch: 1;
+                                Caption { text: "Font"; }
+                                font := Segmented {
+                                    options: ["Condensed", "Regular", "Mono"];
+                                    changed => { root.emit(); }
+                                }
+                            }
+                        }
+                        arrow := MSwitch {
+                            text: "Show the trend arrow";
+                            supporting: "The number gets a little narrower to make room";
+                            toggled => { root.emit(); }
+                        }
+                    }
+                }
+            }
+
+            SettingsSection {
+                title: "Colours";
+                VerticalLayout {
+                    spacing: 6px;
+                    Caption { text: "Accent colour"; }
+                    HorizontalLayout {
+                        spacing: 10px;
+                        for p[i] in root.preset-colors: Swatch {
+                            y: (parent.height - self.height) / 2;
+                            fill: p;
+                            selected: accent.text == root.presets[i];
+                            clicked => {
+                                accent.text = root.presets[i];
+                                root.emit();
+                            }
+                        }
+                        accent := TextField {
+                            width: 130px;
+                            placeholder: "#rrggbb";
+                            edited => { root.emit(); }
+                        }
+                        Rectangle { horizontal-stretch: 1; }
+                    }
+                }
+                HorizontalLayout {
+                    spacing: 32px;
+                    VerticalLayout {
+                        spacing: 8px;
+                        Caption { text: "Glucose range colours (graphs, value card and tray)"; }
+                        vhigh := ColorRow {
+                            label: "Very high";
+                            swatch: Theme.very-high;
+                            edited => { root.emit(); }
+                        }
+                        high := ColorRow {
+                            label: "High";
+                            swatch: Theme.high;
+                            edited => { root.emit(); }
+                        }
+                        target := ColorRow {
+                            label: "In range";
+                            swatch: Theme.target;
+                            edited => { root.emit(); }
+                        }
+                        low := ColorRow {
+                            label: "Low";
+                            swatch: Theme.low;
+                            edited => { root.emit(); }
+                        }
+                        vlow := ColorRow {
+                            label: "Very low";
+                            swatch: Theme.very-low;
+                            edited => { root.emit(); }
+                        }
+                    }
+                    VerticalLayout {
+                        alignment: end;
+                        MButton {
+                            text: "Reset range colours";
+                            kind: 3;
+                            clicked => { SettingsBridge.reset-colors(); }
+                        }
+                    }
+                    Rectangle { horizontal-stretch: 1; }
+                }
+            }
+
+            SettingsSection {
+                title: "Layout";
+                VerticalLayout {
+                    spacing: 4px;
+                    Caption { text: "Corners"; }
+                    corners := Segmented {
+                        width: 360px;
+                        options: ["Square", "Rounded", "Round"];
+                        changed => { root.emit(); }
+                    }
+                }
+                colored := MSwitch {
+                    text: "Fill the current value card with the range colour";
+                    toggled => { root.emit(); }
+                }
+                stats := MSwitch {
+                    text: "Show the 24-hour statistics card";
+                    toggled => { root.emit(); }
+                }
+            }
+
+            SettingsSection {
+                title: "Glucose graph";
+                HorizontalLayout {
+                    spacing: 16px;
+                    VerticalLayout {
+                        spacing: 4px;
+                        horizontal-stretch: 1;
+                        Caption { text: "Time span"; }
+                        hours := Segmented {
+                            options: ["3 h", "6 h", "12 h", "24 h"];
+                            changed => { root.emit(); }
+                        }
+                    }
+                    VerticalLayout {
+                        spacing: 4px;
+                        horizontal-stretch: 1;
+                        Caption { text: "Style"; }
+                        gstyle := Segmented {
+                            options: ["Line", "Dots", "Line + dots"];
+                            changed => { root.emit(); }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+component DevPage inherits Rectangle {
+    property <int> selected: -1;
+    VerticalLayout {
+        padding: 24px;
+        spacing: Theme.gap;
+        PageHeader {
+            title: "API log";
+            subtitle: "Secrets and personal identifiers are redacted. File: " + DevBridge.log-path;
+            MButton {
+                y: (parent.height - self.height) / 2;
+                text: "Open log folder";
+                kind: 2;
+                icon: Icons.folder;
+                clicked => { DevBridge.open-log-folder(); }
+            }
+            MButton {
+                y: (parent.height - self.height) / 2;
+                text: "Clear";
+                kind: 3;
+                clicked => {
+                    root.selected = -1;
+                    DevBridge.clear();
+                }
+            }
+        }
+        HorizontalLayout {
+            spacing: Theme.gap;
+            vertical-stretch: 1;
+            Card {
+                width: 46%;
+                ListView {
+                    for e[i] in DevBridge.entries: Rectangle {
+                        height: 52px;
+                        background: root.selected == i ? Theme.primary-container : (ta.has-hover ? Theme.surface-container-high : transparent);
+                        border-radius: Theme.radius-s;
+                        HorizontalLayout {
+                            padding: 8px;
+                            spacing: 8px;
+                            Rectangle {
+                                width: 8px;
+                                height: 8px;
+                                y: (parent.height - self.height) / 2;
+                                border-radius: 4px;
+                                background: e.ok ? Theme.target : Theme.low;
+                            }
+                            VerticalLayout {
+                                horizontal-stretch: 1;
+                                Text {
+                                    text: e.title;
+                                    color: Theme.on-surface;
+                                    overflow: elide;
+                                    font-size: 12px;
+                                }
+                                Caption {
+                                    text: e.time + "  ·  " + e.status;
+                                    wrap: no-wrap;
+                                }
+                            }
+                        }
+                        ta := TouchArea {
+                            clicked => { root.selected = i; }
+                        }
+                    }
+                }
+            }
+            Card {
+                horizontal-stretch: 1;
+                VerticalLayout {
+                    padding: 12px;
+                    TextEdit {
+                        vertical-stretch: 1;
+                        read-only: true;
+                        font-size: 12px;
+                        text: root.selected >= 0 && root.selected < DevBridge.entries.length ? DevBridge.entries[root.selected].detail : "Select a request (text can be selected and copied)";
+                    }
+                }
+            }
+        }
+    }
+}
+
+component Overlay inherits Rectangle {
+    background: Theme.scrim;
+    TouchArea { }
+    @children
+}
+
+component DialogCard inherits Card {
+    in property <string> title;
+    in property <string> icon;
+    in property <bool> logo;
+    tone: Theme.surface-container-high;
+    drop-shadow-blur: 24px;
+    drop-shadow-color: #00000050;
+    VerticalLayout {
+        padding: 28px;
+        spacing: 16px;
+        HorizontalLayout {
+            spacing: 12px;
+            if root.logo: AppLogo {
+                y: (parent.height - self.height) / 2;
+            }
+            if root.icon != "" && !root.logo: Icon {
+                y: (parent.height - self.height) / 2;
+                path: root.icon;
+                tint: Theme.primary;
+            }
+            Text {
+                text: root.title;
+                font-size: 22px;
+                color: Theme.on-surface;
+                vertical-alignment: center;
+            }
+        }
+        @children
+    }
+}
+
+export component AppWindow inherits Window {
+    title: "Better LibreLinkUp";
+    icon: @image-url("../assets/icon-256.png");
+    preferred-width: 1120px;
+    preferred-height: 800px;
+    min-width: 860px;
+    min-height: 620px;
+    background: Theme.background;
+    default-font-size: 14px;
+
+    in property <int> theme-mode;
+    changed theme-mode => { self.apply-theme(); }
+    init => { self.apply-theme(); }
+    function apply-theme() {
+        Palette.color-scheme = theme-mode == 1 ? ColorScheme.light : theme-mode == 2 ? ColorScheme.dark : ColorScheme.unknown;
+    }
+
+    in-out property <int> page;
+    in property <bool> dev-mode;
+    in property <string> status;
+    in property <bool> status-error;
+    in property <bool> busy;
+
+    // login
+    in property <bool> logged-in;
+    in property <bool> login-busy;
+    in property <string> login-error;
+    in property <string> login-email;
+    in property <[string]> login-servers;
+    callback login(string, string, bool, int);
+
+    // pending legal step
+    in property <string> step-text;
+    callback accept-step();
+    callback decline-step();
+
+    // log unlock
+    in property <bool> store-locked;
+    in property <bool> store-new;
+    in property <string> unlock-error;
+    in property <bool> unlock-busy;
+    callback unlock(string, bool);
+    callback skip-unlock();
+
+    callback refresh();
+
+    HorizontalLayout {
+        // navigation rail
+        Rectangle {
+            width: 88px;
+            background: Theme.surface;
+            VerticalLayout {
+                padding-top: 16px;
+                padding-bottom: 16px;
+                spacing: 8px;
+                HorizontalLayout {
+                    alignment: center;
+                    padding-bottom: 12px;
+                    AppLogo {
+                        width: 36px;
+                        height: 36px;
+                    }
+                }
+                HorizontalLayout {
+                    alignment: center;
+                    NavItem {
+                        icon: Icons.home;
+                        label: "Glucose";
+                        selected: root.page == 0;
+                        clicked => { root.page = 0; }
+                    }
+                }
+                HorizontalLayout {
+                    alignment: center;
+                    NavItem {
+                        icon: Icons.chart;
+                        label: "Reports";
+                        selected: root.page == 1;
+                        clicked => { root.page = 1; }
+                    }
+                }
+                HorizontalLayout {
+                    alignment: center;
+                    NavItem {
+                        icon: Icons.palette;
+                        label: "Appearance";
+                        selected: root.page == 4;
+                        clicked => { root.page = 4; }
+                    }
+                }
+                HorizontalLayout {
+                    alignment: center;
+                    NavItem {
+                        icon: Icons.settings;
+                        label: "Settings";
+                        selected: root.page == 2;
+                        clicked => { root.page = 2; }
+                    }
+                }
+                if root.dev-mode: HorizontalLayout {
+                    alignment: center;
+                    NavItem {
+                        icon: Icons.code;
+                        label: "API log";
+                        selected: root.page == 3;
+                        clicked => { root.page = 3; }
+                    }
+                }
+                Rectangle { vertical-stretch: 1; }
+            }
+        }
+
+        Rectangle {
+            horizontal-stretch: 1;
+            if root.page == 0: DashboardPage {
+                status: root.status;
+                status-error: root.status-error;
+                busy: root.busy;
+                refresh => { root.refresh(); }
+            }
+            if root.page == 1: ReportsPage { }
+            if root.page == 2: SettingsPage { }
+            if root.page == 3: DevPage { }
+            if root.page == 4: AppearancePage { }
+        }
+    }
+
+    property <bool> login-with-server;
+    if !root.logged-in && root.login-with-server: Overlay {
+        background: Theme.background;
+        DialogCard {
+            width: 460px;
+            height: 360px;
+            title: "Connect to a caching server";
+            logo: true;
+            Caption {
+                text: "Run  bllu-server pair  on your server and paste the pairing code. This computer then reads all values from the server and needs no LibreLinkUp login.";
+                font-size: 13px;
+            }
+            login-pair := TextField {
+                label: "Pairing code";
+                placeholder: "bllu1:…";
+            }
+            if SyncBridge.status != "": Text {
+                text: SyncBridge.status;
+                color: SyncBridge.status-error ? Theme.error : Theme.on-surface-variant;
+                font-size: 13px;
+                wrap: word-wrap;
+            }
+            Rectangle { vertical-stretch: 1; }
+            HorizontalLayout {
+                spacing: 8px;
+                MButton {
+                    text: "Back";
+                    kind: 3;
+                    clicked => { root.login-with-server = false; }
+                }
+                Rectangle { horizontal-stretch: 1; }
+                if SyncBridge.busy: Spinner {
+                    width: 28px;
+                    height: 28px;
+                    y: (parent.height - self.height) / 2;
+                    indeterminate: true;
+                }
+                MButton {
+                    text: "Pair";
+                    kind: 0;
+                    enabled: login-pair.text != "" && !SyncBridge.busy;
+                    clicked => { SyncBridge.pair(login-pair.text, true); }
+                }
+            }
+        }
+    }
+
+    if !root.logged-in && !root.login-with-server: Overlay {
+        background: Theme.background;
+        DialogCard {
+            width: 440px;
+            height: 500px;
+            title: "Better LibreLinkUp";
+            logo: true;
+            Caption {
+                text: "Sign in with your LibreLinkUp (follower) account.";
+                font-size: 13px;
+            }
+            email := TextField {
+                label: "Email";
+                text: root.login-email;
+            }
+            pw-edit := TextField {
+                label: "Password";
+                input-type: password;
+                accepted => { root.login(email.text, pw-edit.text, remember.checked, server.current-index); }
+            }
+            VerticalLayout {
+                spacing: 4px;
+                Caption { text: "Server"; }
+                server := ComboBox {
+                    model: root.login-servers;
+                    current-index: 0;
+                }
+            }
+            remember := MSwitch {
+                text: "Remember password in the system keychain";
+                checked: true;
+            }
+            if root.login-error != "": Banner { text: root.login-error; }
+            Rectangle { vertical-stretch: 1; }
+            HorizontalLayout {
+                spacing: 12px;
+                MButton {
+                    text: "Use a caching server instead";
+                    kind: 3;
+                    clicked => { root.login-with-server = true; }
+                }
+                Rectangle { horizontal-stretch: 1; }
+                if root.login-busy: Spinner {
+                    width: 28px;
+                    height: 28px;
+                    y: (parent.height - self.height) / 2;
+                    indeterminate: true;
+                }
+                MButton {
+                    text: "Sign in";
+                    kind: 0;
+                    enabled: !root.login-busy && email.text != "" && pw-edit.text != "";
+                    clicked => { root.login(email.text, pw-edit.text, remember.checked, server.current-index); }
+                }
+            }
+        }
+    }
+
+    if root.logged-in && root.store-locked: Overlay {
+        DialogCard {
+            width: 460px;
+            height: 340px;
+            title: root.store-new ? "Protect your glucose log" : "Unlock your glucose log";
+            icon: Icons.lock;
+            Caption {
+                text: root.store-new ? "Choose a passphrase to encrypt the log files. Leave it empty to store them unencrypted." : "The log is encrypted. Enter the passphrase to load your history.";
+                font-size: 13px;
+            }
+            pass := TextField {
+                label: "Passphrase";
+                input-type: password;
+                accepted => { root.unlock(pass.text, keep.checked); }
+            }
+            keep := MSwitch {
+                text: "Remember in the system keychain";
+                checked: true;
+            }
+            if root.unlock-error != "": Banner { text: root.unlock-error; }
+            Rectangle { vertical-stretch: 1; }
+            HorizontalLayout {
+                spacing: 8px;
+                if root.unlock-busy: Spinner {
+                    width: 28px;
+                    height: 28px;
+                    y: (parent.height - self.height) / 2;
+                    indeterminate: true;
+                }
+                Rectangle { horizontal-stretch: 1; }
+                MButton {
+                    text: "Continue without log";
+                    kind: 3;
+                    clicked => { root.skip-unlock(); }
+                }
+                MButton {
+                    text: root.store-new ? "Create" : "Unlock";
+                    kind: 0;
+                    enabled: !root.unlock-busy && (root.store-new || pass.text != "");
+                    clicked => { root.unlock(pass.text, keep.checked); }
+                }
+            }
+        }
+    }
+
+    if Reports.detail-open: Overlay {
+        TouchArea {
+            clicked => { Reports.detail-open = false; }
+        }
+        Card {
+            x: (parent.width - self.width) / 2;
+            y: (parent.height - self.height) / 2;
+            width: min(parent.width - 48px, 980px);
+            height: min(parent.height - 48px, 680px);
+            tone: Theme.surface-container-high;
+            drop-shadow-blur: 24px;
+            drop-shadow-color: #00000050;
+            TouchArea { }
+            VerticalLayout {
+                padding: 24px;
+                spacing: 16px;
+                HorizontalLayout {
+                    spacing: 4px;
+                    Text {
+                        horizontal-stretch: 1;
+                        text: Reports.detail-title;
+                        font-size: 22px;
+                        color: Theme.on-surface;
+                        vertical-alignment: center;
+                    }
+                    IconButton {
+                        icon: Icons.chevron-left;
+                        enabled: Reports.detail-prev >= 0;
+                        clicked => { Reports.open-day(Reports.detail-prev); }
+                    }
+                    IconButton {
+                        icon: Icons.chevron-right;
+                        enabled: Reports.detail-next >= 0;
+                        clicked => { Reports.open-day(Reports.detail-next); }
+                    }
+                    IconButton {
+                        icon: Icons.close;
+                        clicked => { Reports.detail-open = false; }
+                    }
+                }
+                GlucoseGraph {
+                    vertical-stretch: 1;
+                    min-height: 220px;
+                    graph-style: Dashboard.graph-style;
+                    line-path: Reports.detail-line;
+                    dots: Reports.detail-dots;
+                    y-labels: Reports.detail-y-labels;
+                    x-labels: Reports.detail-x-labels;
+                    band-top: Reports.detail-band-top;
+                    band-bottom: Reports.detail-band-bottom;
+                }
+                HorizontalLayout {
+                    spacing: 32px;
+                    height: 200px;
+                    VerticalLayout {
+                        horizontal-stretch: 1;
+                        alignment: space-between;
+                        for s in Reports.detail-stats: HorizontalLayout {
+                            spacing: 12px;
+                            Text {
+                                horizontal-stretch: 1;
+                                text: s.label;
+                                color: Theme.on-surface-variant;
+                                vertical-alignment: center;
+                            }
+                            Text {
+                                text: s.value;
+                                color: Theme.on-surface;
+                                font-weight: 700;
+                                vertical-alignment: center;
+                            }
+                        }
+                    }
+                    TirChart {
+                        horizontal-stretch: 1;
+                        rows: Reports.detail-tir;
+                    }
+                }
+            }
+        }
+    }
+
+    if SettingsBridge.wipe-open: Overlay {
+        DialogCard {
+            x: (parent.width - self.width) / 2;
+            y: (parent.height - self.height) / 2;
+            width: 540px;
+            height: 470px;
+            title: "Delete all local data?";
+            icon: Icons.delete;
+            Caption {
+                text: "This permanently removes from this computer:\n•  settings, app and API logs\n•  the saved LibreLinkUp sign-in, the log passphrase and the caching-server pairing (system keychain)\n•  the autostart entry";
+                font-size: 13px;
+            }
+            wipe-log := MSwitch {
+                text: "Also delete the glucose log";
+                supporting: SettingsBridge.log-folder + " – computers that sync this folder lose it too";
+                checked: true;
+            }
+            Caption {
+                text: "Export your readings first if you want to keep them. A paired caching server keeps listing this computer until you run  bllu-server revoke  there. The app closes when it is done.";
+                font-size: 13px;
+            }
+            Rectangle { vertical-stretch: 1; }
+            HorizontalLayout {
+                spacing: 8px;
+                Rectangle { horizontal-stretch: 1; }
+                MButton {
+                    text: "Cancel";
+                    kind: 3;
+                    clicked => { SettingsBridge.wipe-open = false; }
+                }
+                MButton {
+                    text: "Delete everything";
+                    kind: 4;
+                    icon: Icons.delete;
+                    clicked => {
+                        SettingsBridge.wipe-open = false;
+                        SettingsBridge.wipe-data(wipe-log.checked);
+                    }
+                }
+            }
+        }
+    }
+
+    if root.step-text != "": Overlay {
+        DialogCard {
+            width: 480px;
+            height: 270px;
+            title: "Action required by LibreLinkUp";
+            Caption {
+                text: root.step-text;
+                font-size: 13px;
+            }
+            Rectangle { vertical-stretch: 1; }
+            HorizontalLayout {
+                spacing: 8px;
+                Rectangle { horizontal-stretch: 1; }
+                MButton {
+                    text: "Cancel";
+                    kind: 3;
+                    clicked => { root.decline-step(); }
+                }
+                MButton {
+                    text: "I accept";
+                    kind: 0;
+                    clicked => { root.accept-step(); }
+                }
+            }
+        }
+    }
+
+    Snackbar {
+        x: (parent.width - self.width) / 2 + 44px;
+        y: parent.height - self.height - 24px;
+    }
+}

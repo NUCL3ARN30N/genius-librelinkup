@@ -1,0 +1,56 @@
+# Better LibreLinkUp caching server
+#
+#   1. printf '%s' 'your-librelinkup-password' > llu_password.txt
+#      head -c 32 /dev/urandom | base64 > data_passphrase.txt
+#      chmod 600 llu_password.txt data_passphrase.txt
+#   2. adjust LLU_EMAIL, BLLU_PUBLIC_URL, BLLU_TLS_SANS and BLLU_ALLOW_CIDRS below
+#   3. docker compose up -d
+#   4. docker exec bllu bllu-server pair      → paste the code into the desktop app
+services:
+  bllu:
+    image: ghcr.io/nucl3arn30n/bllu-server:latest
+    # or build it yourself from the repository:
+    # build: { context: .., dockerfile: server/Dockerfile }
+    container_name: bllu
+    restart: unless-stopped
+    ports:
+      - "8443:8443"
+    environment:
+      LLU_EMAIL: "you@example.com"
+      LLU_PASSWORD_FILE: /run/secrets/llu_password
+      # encrypts the stored readings at rest
+      BLLU_DATA_PASSPHRASE_FILE: /run/secrets/data_passphrase
+      # address the desktop apps use to reach this server (put into pairing codes)
+      BLLU_PUBLIC_URL: "https://192.168.1.20:8443"
+      # names/IPs written into the self-signed certificate
+      BLLU_TLS_SANS: "192.168.1.20,bllu.local"
+      # only these networks may connect (LAN + typical VPN ranges)
+      BLLU_ALLOW_CIDRS: "192.168.0.0/16,10.0.0.0/8,172.16.0.0/12,100.64.0.0/10,fd00::/8"
+      BLLU_NAME: "Home server"
+      # optional: force a LibreLinkUp region, e.g. https://api-eu2.libreview.io
+      # LLU_SERVER: ""
+    secrets:
+      - llu_password
+      - data_passphrase
+    volumes:
+      - bllu-data:/data
+    # hardening: no privileges, read-only image, nothing but the data volume is writable
+    user: "10001:10001"
+    read_only: true
+    tmpfs:
+      - /tmp:size=8m,mode=1777
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    pids_limit: 128
+    mem_limit: 256m
+
+secrets:
+  llu_password:
+    file: ./llu_password.txt
+  data_passphrase:
+    file: ./data_passphrase.txt
+
+volumes:
+  bllu-data:

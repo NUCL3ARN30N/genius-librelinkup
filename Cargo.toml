@@ -1,0 +1,71 @@
+[package]
+name = "better-librelinkup"
+version = "0.1.0"
+edition = "2024"
+description = "Desktop tray monitor for FreeStyle Libre glucose data via LibreLinkUp (unofficial)"
+license = "MIT"
+authors = ["Lukas Kulmer <kulmerlukas@outlook.com>"]
+repository = "https://github.com/NUCL3ARN30N/better-librelinkup"
+readme = "README.md"
+keywords = ["librelinkup", "freestyle-libre", "glucose", "cgm", "tray"]
+categories = ["gui"]
+build = "build.rs"
+
+[workspace]
+members = [".", "core", "server"]
+resolver = "3"
+
+[dependencies]
+bllu-core = { path = "core" }
+anyhow = "1.0.104"
+chrono = { version = "0.4.45", features = ["serde"] }
+directories = "6.0.0"
+hex = "0.4.3"
+keyring = "4.2.0"
+notify-rust = "4.18.2"
+reqwest = { version = "0.13.5", default-features = false, features = ["json", "rustls", "gzip"] }
+resvg = { version = "0.48.1", default-features = false, features = ["text", "system-fonts"] }
+rfd = "0.17.2"
+serde = { version = "1.0.229", features = ["derive"] }
+serde_json = "1.0.154"
+sha2 = "0.11.1"
+slint = "1.18.1"
+thiserror = "2.0.21"
+tokio = { version = "1.54.1", features = ["rt-multi-thread", "macros", "time", "sync"] }
+tracing = "0.1.44"
+tracing-appender = "0.2.5"
+tracing-subscriber = { version = "0.3.23", features = ["env-filter"] }
+# On Linux use the pure-Rust StatusNotifierItem (ksni) backend instead of GTK/libappindicator.
+tray-icon = { version = "0.26.1", default-features = false, features = ["ksni"] }
+
+[target.'cfg(windows)'.dependencies]
+winreg = "0.55"
+
+[build-dependencies]
+slint-build = "1.18.1"
+
+[target.'cfg(windows)'.build-dependencies]
+winresource = "0.1"
+
+[profile.release]
+lto = "thin"
+codegen-units = 1
+strip = true
+opt-level = 3
+
+[package.metadata.deb]
+maintainer = "Lukas Kulmer <kulmerlukas@outlook.com>"
+copyright = "2026, Lukas Kulmer"
+extended-description = """\
+Unofficial desktop companion for LibreLinkUp. Shows your current glucose value \
+in the system tray, notifies on low/high values, draws the last 12 hours and \
+keeps an optional encrypted log with AGP/HbA1c style reports."""
+section = "utils"
+priority = "optional"
+depends = "$auto"
+assets = [
+    ["target/release/better-librelinkup", "usr/bin/", "755"],
+    ["packaging/linux/better-librelinkup.desktop", "usr/share/applications/", "644"],
+    ["assets/icon-256.png", "usr/share/icons/hicolor/256x256/apps/better-librelinkup.png", "644"],
+    ["README.md", "usr/share/doc/better-librelinkup/README.md", "644"],
+]

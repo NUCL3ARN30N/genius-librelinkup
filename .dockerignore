@@ -1,0 +1,9 @@
+target
+dist
+.git
+data
+server/llu_password.txt
+server/data_passphrase.txt
+*.env
+!*.env.example
+.env

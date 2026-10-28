@@ -1,0 +1,390 @@
+import { Theme } from "theme.slint";
+import { Caption } from "components.slint";
+
+// All chart geometry is computed in Rust. Paths use a 1000×400 viewbox; positions are
+// fractions (0..1) of the plot area, measured from the left / top.
+export struct AxisLabel {
+    pos: float,
+    text: string,
+}
+
+export struct Dot {
+    x: float,
+    y: float,
+    level: int,
+}
+
+export struct TirRow {
+    label: string,
+    range: string,
+    pct: float,
+    pct-text: string,
+    duration: string,
+    level: int,
+}
+
+export struct Insight {
+    label: string,
+    low: int,
+    median: int,
+    variability: int,
+}
+
+// One cell of the daily-profile calendar (Monday first). `key` identifies the local date and is
+// -1 for the padding cells before the first and after the last day.
+export struct DayCard {
+    key: int,
+    day: string,
+    month: string,
+    path: string,
+    has-data: bool,
+    in-range: string,
+    level: int,
+}
+
+component PlotFrame inherits Rectangle {
+    in property <[AxisLabel]> y-labels;
+    in property <[AxisLabel]> x-labels;
+    in property <float> band-top;
+    in property <float> band-bottom;
+    in property <length> left-pad: 44px;
+    in property <length> bottom-pad: 24px;
+    out property <length> plot-width: plot.width;
+    out property <length> plot-height: plot.height;
+
+    for l in root.y-labels: Text {
+        x: 0;
+        y: plot.y + plot.height * l.pos - 8px;
+        width: root.left-pad - 8px;
+        height: 16px;
+        horizontal-alignment: right;
+        vertical-alignment: center;
+        text: l.text;
+        font-size: 11px;
+        color: Theme.on-surface-variant;
+    }
+    for l in root.x-labels: Text {
+        x: plot.x + plot.width * l.pos - 30px;
+        y: plot.y + plot.height + 4px;
+        width: 60px;
+        horizontal-alignment: center;
+        text: l.text;
+        font-size: 11px;
+        color: Theme.on-surface-variant;
+    }
+
+    plot := Rectangle {
+        x: root.left-pad;
+        y: 8px;
+        width: root.width - root.left-pad - 12px;
+        height: root.height - root.bottom-pad - 8px;
+        clip: true;
+
+        Rectangle {
+            y: parent.height * root.band-top;
+            height: parent.height * (root.band-bottom - root.band-top);
+            background: Theme.target-band;
+        }
+        for l in root.y-labels: Rectangle {
+            y: parent.height * l.pos;
+            height: 1px;
+            background: Theme.grid;
+        }
+        for l in root.x-labels: Rectangle {
+            x: parent.width * l.pos;
+            width: 1px;
+            background: Theme.grid;
+        }
+        Rectangle {
+            y: parent.height * root.band-top;
+            height: 1px;
+            background: Theme.target;
+            opacity: 0.6;
+        }
+        Rectangle {
+            y: parent.height * root.band-bottom;
+            height: 1px;
+            background: Theme.target;
+            opacity: 0.6;
+        }
+        @children
+    }
+}
+
+export component GlucoseGraph inherits Rectangle {
+    in property <string> line-path;
+    in property <[Dot]> dots;
+    in property <[AxisLabel]> y-labels;
+    in property <[AxisLabel]> x-labels;
+    in property <float> band-top;
+    in property <float> band-bottom;
+    in property <string> empty-text: "No data yet";
+    // 0 line, 1 dots, 2 line + dots
+    in property <int> graph-style;
+
+    frame := PlotFrame {
+        width: 100%;
+        height: 100%;
+        y-labels: root.y-labels;
+        x-labels: root.x-labels;
+        band-top: root.band-top;
+        band-bottom: root.band-bottom;
+
+        if root.line-path != "" && root.graph-style != 1: Path {
+            width: 100%;
+            height: 100%;
+            commands: root.line-path;
+            viewbox-width: 1000;
+            viewbox-height: 400;
+            fit: fill;
+            stroke: Theme.on-surface-variant;
+            stroke-width: 2px;
+            fill: transparent;
+        }
+        // the last dot is the current reading and drawn larger
+        for d[i] in root.dots: Rectangle {
+            property <bool> last: i == root.dots.length - 1;
+            property <length> size: self.last ? 10px : 5px;
+            x: frame.plot-width * d.x - self.size / 2;
+            y: frame.plot-height * d.y - self.size / 2;
+            width: self.size;
+            height: self.size;
+            border-radius: self.size / 2;
+            background: Theme.level-color(d.level);
+            border-width: self.last ? 2px : 0px;
+            border-color: Theme.surface;
+        }
+    }
+    if root.line-path == "": Caption {
+        text: root.empty-text;
+        horizontal-alignment: center;
+        vertical-alignment: center;
+    }
+}
+
+export component AgpChart inherits Rectangle {
+    in property <string> outer-path;
+    in property <string> inner-path;
+    in property <string> median-path;
+    in property <[AxisLabel]> y-labels;
+    in property <[AxisLabel]> x-labels;
+    in property <float> band-top;
+    in property <float> band-bottom;
+
+    PlotFrame {
+        width: 100%;
+        height: 100%;
+        y-labels: root.y-labels;
+        x-labels: root.x-labels;
+        band-top: root.band-top;
+        band-bottom: root.band-bottom;
+
+        if root.outer-path != "": Path {
+            width: 100%;
+            height: 100%;
+            commands: root.outer-path;
+            viewbox-width: 1000;
+            viewbox-height: 400;
+            fit: fill;
+            fill: Theme.agp-outer;
+            stroke-width: 0px;
+        }
+        if root.inner-path != "": Path {
+            width: 100%;
+            height: 100%;
+            commands: root.inner-path;
+            viewbox-width: 1000;
+            viewbox-height: 400;
+            fit: fill;
+            fill: Theme.agp-inner;
+            stroke-width: 0px;
+        }
+        if root.median-path != "": Path {
+            width: 100%;
+            height: 100%;
+            commands: root.median-path;
+            viewbox-width: 1000;
+            viewbox-height: 400;
+            fit: fill;
+            stroke: Theme.agp-median;
+            stroke-width: 2.5px;
+            fill: transparent;
+        }
+    }
+}
+
+// Calendar cell: date, share in range and a small 24 h profile. Days with data are clickable.
+export component DayChart inherits Rectangle {
+    in property <DayCard> day;
+    in property <float> band-top;
+    in property <float> band-bottom;
+    callback clicked(int);
+    property <bool> padding-cell: root.day.key < 0;
+    border-radius: 8px;
+    border-width: padding-cell ? 0px : 1px;
+    border-color: touch.has-hover ? Theme.primary : Theme.outline-variant;
+    background: padding-cell ? transparent : root.day.has-data ? Theme.surface : Theme.surface.with-alpha(0.4);
+    clip: true;
+
+    if !root.padding-cell: Text {
+        x: 8px;
+        y: 5px;
+        text: root.day.month != "" ? root.day.day + " " + root.day.month : root.day.day;
+        font-size: 12px;
+        font-weight: root.day.has-data ? 700 : 400;
+        color: root.day.has-data ? Theme.on-surface : Theme.on-surface-variant.with-alpha(0.6);
+    }
+    if root.day.has-data: Text {
+        x: parent.width - self.width - 8px;
+        y: 5px;
+        text: root.day.in-range;
+        font-size: 11px;
+        font-weight: 600;
+        color: Theme.level-color(root.day.level);
+    }
+    if root.day.has-data: Rectangle {
+        x: 0;
+        y: 24px;
+        width: parent.width;
+        height: parent.height - 28px;
+        Rectangle {
+            y: parent.height * root.band-top;
+            height: parent.height * (root.band-bottom - root.band-top);
+            background: Theme.target-band;
+        }
+        Path {
+            width: 100%;
+            height: 100%;
+            commands: root.day.path;
+            viewbox-width: 1000;
+            viewbox-height: 400;
+            fit: fill;
+            stroke: Theme.primary;
+            stroke-width: 1.5px;
+            fill: transparent;
+        }
+    }
+    touch := TouchArea {
+        enabled: root.day.has-data;
+        mouse-cursor: root.day.has-data ? pointer : default;
+        clicked => { root.clicked(root.day.key); }
+    }
+}
+
+export component TirChart inherits Rectangle {
+    in property <[TirRow]> rows;
+    HorizontalLayout {
+        spacing: 16px;
+        // stacked bar (very high on top)
+        Rectangle {
+            width: 36px;
+            border-radius: 6px;
+            clip: true;
+            VerticalLayout {
+                for r in root.rows: Rectangle {
+                    vertical-stretch: max(r.pct, 0.0001);
+                    min-height: r.pct > 0 ? 3px : 0px;
+                    background: Theme.level-color(r.level);
+                }
+            }
+        }
+        VerticalLayout {
+            alignment: space-between;
+            for r in root.rows: HorizontalLayout {
+                spacing: 8px;
+                Rectangle {
+                    width: 10px;
+                    height: 10px;
+                    y: (parent.height - self.height) / 2;
+                    border-radius: 5px;
+                    background: Theme.level-color(r.level);
+                }
+                VerticalLayout {
+                    horizontal-stretch: 1;
+                    Text {
+                        text: r.label;
+                        color: Theme.on-surface;
+                        font-weight: 600;
+                    }
+                    Caption { text: r.range; }
+                }
+                VerticalLayout {
+                    alignment: center;
+                    Text {
+                        text: r.pct-text;
+                        horizontal-alignment: right;
+                        color: Theme.on-surface;
+                        font-size: 18px;
+                        font-weight: 700;
+                    }
+                    Caption {
+                        text: r.duration;
+                        horizontal-alignment: right;
+                    }
+                }
+            }
+        }
+    }
+}
+
+component Light inherits Rectangle {
+    in property <int> light;
+    width: 28px;
+    height: 28px;
+    border-radius: 14px;
+    background: Theme.light-color(light);
+    if root.light == 1: Text {
+        text: "OK";
+        font-size: 10px;
+        font-weight: 700;
+        color: #ffffff;
+    }
+    if root.light == 0: Text {
+        text: "–";
+        font-size: 12px;
+        color: Theme.on-surface-variant;
+    }
+}
+
+export component InsightsTable inherits Rectangle {
+    in property <[Insight]> rows;
+    property <length> label-width: 170px;
+    VerticalLayout {
+        spacing: 4px;
+        HorizontalLayout {
+            height: 24px;
+            Rectangle { width: root.label-width; }
+            for r in root.rows: Text {
+                horizontal-stretch: 1;
+                text: r.label;
+                horizontal-alignment: center;
+                vertical-alignment: center;
+                color: Theme.on-surface-variant;
+                font-size: 12px;
+            }
+        }
+        for row-index in 3: Rectangle {
+            height: 44px;
+            border-radius: Theme.radius-s;
+            background: Math.mod(row-index, 2) == 0 ? Theme.surface.with-alpha(Theme.dark ? 0.35 : 0.7) : transparent;
+            HorizontalLayout {
+                padding-left: 12px;
+                Text {
+                    width: root.label-width - 12px;
+                    vertical-alignment: center;
+                    text: row-index == 0 ? "Likelihood of low" : row-index == 1 ? "Median vs. goal" : "Variability below median";
+                    color: Theme.on-surface;
+                    font-size: 12px;
+                    font-weight: 600;
+                    wrap: word-wrap;
+                }
+                for r in root.rows: Rectangle {
+                    horizontal-stretch: 1;
+                    Light {
+                        light: row-index == 0 ? r.low : row-index == 1 ? r.median : r.variability;
+                    }
+                }
+            }
+        }
+    }
+}
