@@ -3,7 +3,7 @@ name = "bllu-core"
 version = "0.1.1"
 edition = "2024"
 description = "Shared code of Better LibreLinkUp: LibreLinkUp client, encrypted glucose store, sync protocol"
-license = "MIT"
+license = "GPL-3.0-only"
 publish = false
 
 [dependencies]
