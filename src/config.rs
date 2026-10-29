@@ -29,11 +29,13 @@ pub struct TrayStyle {
     pub text_color: u8,
     /// 0 condensed, 1 regular, 2 monospace
     pub font: u8,
+    /// Show the arrow as a second tray icon, so the number gets the full width.
+    pub arrow_separate: bool,
 }
 
 impl Default for TrayStyle {
     fn default() -> Self {
-        Self { shape: 3, arrow: true, text_color: 0, font: 0 }
+        Self { shape: 3, arrow: true, text_color: 0, font: 0, arrow_separate: true }
     }
 }
 

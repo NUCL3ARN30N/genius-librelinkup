@@ -35,21 +35,23 @@ genius-librelinkup --tray-preview <dir>   # write magnified tray icon sheets (16
 
 | #  | Feature                        | Description                                                                                                                                                                                                                                                                                                                                                                                                              |
 | -- | ------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| 1  | **Tray icon**                  | The current value (`6.2`, `112`, `LO`/`HI`) with a trend arrow, coloured by range. Rendered with real system fonts at the exact pixel size the tray uses; arrows snap to whole pixels so they stay readable at 16 px. Choose the shape (number only / drop / circle / square), text colour, font (condensed / regular / mono) and whether the arrow is shown. The tooltip adds the trend text and the age of the reading |
+| 1  | **Tray icon**                  | The current value (`6.2`, `112`, `LO`/`HI`) with a trend arrow, coloured by range. Rendered with real system fonts at the exact pixel size the tray uses; arrows snap to whole pixels so they stay readable at 16 px. Choose the shape (number only / drop / circle / square), text colour, font (condensed / regular / mono) and whether the arrow is shown – by default as a second tray icon, so the number keeps the full width. The value is centred on the actual glyphs of the installed font. The tooltip adds the trend text and the age of the reading |
 | 2  | **Customisable UI**            | Appearance page, applied live: accent colour, glucose range colours, corner style, filled or outlined value card, show/hide statistics card, graph span (3/6/12/24 h) and style (line, dots or both)                                                                                                                                                                                                                     |
-| 3  | **Dashboard**                  | Current value, trend, a last-12-hours graph with the target band, and 24 h time-in-range / average / CV                                                                                                                                                                                                                                                                                                                  |
+| 3  | **Dashboard**                  | Current value, trend, a last-12-hours graph with the target band, and 24 h time-in-range / average / CV. Point at the graph (any style) for the time and value of a reading                                                                                                                                                                                                                                             |
+| 3a | **Notes**                      | Add a note at any time – with "Add note" or by clicking the graph. Notes show as markers on the dashboard graph, in the day details and in the daily-profile calendar; pointing at a marker shows the text, clicking it edits or deletes the note. Stored in the log folder (encrypted with the log, merged between computers), and part of the CSV export/import                                                           |
 | 4  | **Notifications**              | Low, high, and "no new data" alerts, each with its own toggle and a configurable repeat interval                                                                                                                                                                                                                                                                                                                         |
 | 5  | **Glucose log**                | Optional, with LibreView-style reports for 7/14/30/90 days (see [Reports](#reports))                                                                                                                                                                                                                                                                                                                                     |
 | 6  | **Encrypted log files**        | XChaCha20-Poly1305 with Argon2id key derivation, in a **folder you choose**. Put it in Nextcloud/OneDrive/Dropbox to share it between machines — each monthly file is merged with the copy on disk before writing, so two PCs syncing the same folder don't lose readings                                                                                                                                                |
 | 7  | **Passphrase protection**      | Changing or removing the log passphrase needs the current passphrase, so an unlocked session alone is not enough                                                                                                                                                                                                                                                                                                         |
 | 8  | **Delete all local data**      | Removes settings, app/API logs, the keychain entries, the autostart entry and optionally the glucose log files (only the app's own files — other files in a synced folder stay), then closes the app                                                                                                                                                                                                                     |
-| 9  | **Import/export**              | Settings as JSON, readings as CSV. Imports LibreView's "Download glucose data" CSV to backfill history beyond the 12 hours LibreLinkUp provides                                                                                                                                                                                                                                                                          |
+| 9  | **Import/export**              | Settings as JSON, readings and notes as CSV. Imports LibreView's "Download glucose data" CSV (including its notes) to backfill history beyond the 12 hours LibreLinkUp provides                                                                                                                                                                                                                                         |
 | 10 | **Automatic server discovery** | Reads Abbott's live `regionalMap` (`/llu/config/country`), follows login redirects to the right region, and caches the result. Manual server override available                                                                                                                                                                                                                                                          |
 | 11 | **Developer mode**             | In-app API log with redacted requests and responses, also written to a daily rolling log file                                                                                                                                                                                                                                                                                                                            |
 | 12 | **Caching server**             | See [Caching Server](#caching-server)                                                                                                                                                                                                                                                                                                                                                                                    |
 | 13 | **Built-in updater**           | Checks the [GitHub releases](https://github.com/NUCL3ARN30N/genius-librelinkup/releases) every 12 h (or on demand) and updates in place: silent installer run, portable exe swap, or `apt` via `pkexec` for the `.deb`. Downloads are only installed when they match the release's `SHA256SUMS.txt`                                                                                                                      |
 | 14 | **OS keychain**                | Credentials, the log passphrase and the server token live in Windows Credential Manager or Secret Service, never in plain files                                                                                                                                                                                                                                                                                          |
 | 15 | **Desktop niceties**           | Autostart, start-minimized, light/dark/system theme, mmol/L or mg/dL units                                                                                                                                                                                                                                                                                                                                               |
+| 16 | **About page**                 | Version, what's new (from [CHANGELOG.md](CHANGELOG.md)) and links to this repository, issues, releases, documentation and the licence                                                                                                                                                                                                                                                                                    |
 
 ## Reports
 
@@ -59,7 +61,7 @@ genius-librelinkup --tray-preview <dir>   # write magnified tray icon sheets (16
 | **Time in ranges**             | Very low / low / target / high / very high                                                                     |
 | **Ambulatory glucose profile** | AGP median, 25–75 % and 5–95 % percentile bands                                                                |
 | **Pattern insights**           | Traffic lights per time of day                                                                                 |
-| **Daily profiles**             | Calendar (Monday first, only days with data); click a day for its 24-hour graph, statistics and time in ranges |
+| **Daily profiles**             | Calendar (Monday first, only days with data); point at a day to read values and notes, click it for its 24-hour graph, statistics, time in ranges and notes |
 
 ## Caching Server
 
@@ -114,10 +116,19 @@ Remove-Item Env:LLU_PASSWORD
 
 Log format: `vault.json` (KDF parameters, salt, check value) plus one `glucose-YYYY-MM.gllu` file per
 month: magic `BLLU` (kept from the former name), version, cipher byte, then a 24-byte nonce and ciphertext of 11-byte records
-(`i64` unix time, `u16` mg/dL, `u8` trend).
+(`i64` unix time, `u16` mg/dL, `u8` trend). Notes live in `notes.gllu` in the same container with a JSON
+payload (`id`, `time`, `text`, `updated`, `deleted`); deletions are kept as tombstones so a synced copy
+on another computer does not bring a note back.
+
+CSV export: `timestamp_utc,local_time,glucose_mg_dl,glucose_mmol_l,trend,note`, ordered by time. Note
+rows leave the glucose columns empty.
 
 Setting `GLLU_HOME=<dir>` keeps settings, log and app logs in that folder and uses a separate
 keychain namespace. Use it for portable setups or for test copies next to your normal install.
+
+**Windows autostart:** the entry is `HKCU\Software\Microsoft\Windows\CurrentVersion\Run\GeniusLibreLinkUp`
+and is rewritten on every start. If the app is switched off under Task Manager → Startup apps,
+Windows skips it; turning *Start when I sign in* off and on in the app clears that switch.
 
 ### Upgrading from Better LibreLinkUp
 
@@ -153,13 +164,14 @@ cargo deb                        # target/debian/genius-librelinkup_*.deb
 **Windows installer** – [Inno Setup 6](https://jrsoftware.org/isinfo.php):
 
 ```powershell
-iscc /DAppVersion=0.1.0 packaging\windows\installer.iss   # target/installer/*.exe
+iscc /DAppVersion=0.2.0 packaging\windows\installer.iss   # target/installer/*.exe
 ```
 
 GitHub Actions (`.github/workflows/build.yml`) builds everything. A `v*` tag publishes a release
 with the installer, the portable exe, the `.deb`, the `gllu-server` Linux binary and
 `SHA256SUMS.txt` (the updater relies on these asset names), and pushes the server image to
-`ghcr.io/nucl3arn30n/gllu-server`.
+`ghcr.io/nucl3arn30n/gllu-server`. The release notes are the version's section of
+[CHANGELOG.md](CHANGELOG.md), which the app also shows under *About*.
 
 ## Requirements
 

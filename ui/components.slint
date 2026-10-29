@@ -235,6 +235,7 @@ export component TextField inherits VerticalLayout {
     in property <string> suffix;
     callback edited(string);
     callback accepted(string);
+    public function focus-input() { input.focus(); }
     spacing: 4px;
     if root.label != "": Caption { text: root.label; }
     Rectangle {

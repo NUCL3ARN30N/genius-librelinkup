@@ -1,9 +1,9 @@
 import { ComboBox, ScrollView, ListView, TextEdit, Palette, Spinner } from "std-widgets.slint";
 import { Theme, Icons, Toast } from "theme.slint";
 import { AppLogo, Card, Title, Caption, NavItem, IconButton, Icon, StatTile, StatItem, Chip, Banner, MButton, Segmented, MSwitch, TextField, Stepper, Swatch, Snackbar } from "components.slint";
-import { GlucoseGraph, AgpChart, DayChart, TirChart, InsightsTable, AxisLabel, Dot, TirRow, Insight, DayCard } from "charts.slint";
+import { GlucoseGraph, AgpChart, DayChart, TirChart, InsightsTable, AxisLabel, Dot, TirRow, Insight, DayCard, GraphPoint, NoteMark, ChartBridge } from "charts.slint";
 
-export { AxisLabel, Dot, TirRow, Insight, DayCard, StatItem, Theme, Toast }
+export { AxisLabel, Dot, TirRow, Insight, DayCard, StatItem, Theme, Toast, GraphPoint, NoteMark, ChartBridge }
 
 export struct LogItem {
     time: string,
@@ -52,6 +52,7 @@ export struct UiAppearance {
     show-stats: bool,
     tray-shape: int,
     tray-arrow: bool,
+    tray-arrow-separate: bool,
     tray-text: int,
     tray-font: int,
 }
@@ -74,6 +75,8 @@ export global Dashboard {
     in property <bool> show-stats: true;
     in property <string> line-path;
     in property <[Dot]> dots;
+    in property <[GraphPoint]> points;
+    in property <[NoteMark]> notes;
     in property <[AxisLabel]> y-labels;
     in property <[AxisLabel]> x-labels;
     in property <float> band-top;
@@ -108,6 +111,10 @@ export global Reports {
     in property <string> detail-title;
     in property <string> detail-line;
     in property <[Dot]> detail-dots;
+    in property <[GraphPoint]> detail-points;
+    in property <[NoteMark]> detail-notes;
+    // the day as "2026-10-29", for new notes
+    in property <string> detail-date;
     in property <[AxisLabel]> detail-y-labels;
     in property <[AxisLabel]> detail-x-labels;
     in property <float> detail-band-top;
@@ -120,6 +127,46 @@ export global Reports {
     callback open-day(int);
 }
 
+// Notes at a point in time, kept in the glucose log folder. The dialog edits the in-out fields;
+// Rust closes it once the note is saved.
+export global Notes {
+    in property <bool> available;
+    in-out property <bool> open;
+    // empty for a new note
+    in-out property <string> id;
+    // "2026-10-29 14:30"
+    in-out property <string> when;
+    in-out property <string> text;
+    in-out property <string> error;
+    callback now() -> string;
+    callback save(string, string, string);
+    callback delete(string);
+
+    // empty `when`: now
+    public function compose(when: string) {
+        Notes.id = "";
+        Notes.when = when != "" ? when : Notes.now();
+        Notes.text = "";
+        Notes.error = "";
+        Notes.open = true;
+    }
+    public function edit(n: NoteMark) {
+        Notes.id = n.id;
+        Notes.when = n.when;
+        Notes.text = n.text;
+        Notes.error = "";
+        Notes.open = true;
+    }
+}
+
+// The About page: project links and what changed in this version.
+export global About {
+    in property <string> version;
+    in property <string> changes;
+    // 0 repository, 1 report a problem, 2 releases, 3 licence, 4 documentation
+    callback open-link(int);
+}
+
 export global SettingsBridge {
     in property <UiSettings> settings;
     // in-out: the Appearance page writes its edits back here, otherwise reopening the page (it
@@ -130,6 +177,9 @@ export global SettingsBridge {
     in property <bool> store-encrypted;
     in property <image> tray-preview;
     in property <image> tray-preview-actual;
+    // the separate trend-arrow icon (empty when the arrow is part of the number icon)
+    in property <image> tray-arrow-preview;
+    in property <image> tray-arrow-preview-actual;
     in property <int> tray-actual-size: 16;
     callback save(UiSettings);
     callback appearance-changed(UiAppearance);
@@ -357,17 +407,44 @@ component DashboardPage inherits Rectangle {
             min-height: 260px;
             VerticalLayout {
                 padding: 20px;
+                padding-top: 12px;
                 spacing: 8px;
-                Title { text: Dashboard.graph-title; }
+                HorizontalLayout {
+                    spacing: 12px;
+                    min-height: 40px;
+                    Title {
+                        text: Dashboard.graph-title;
+                        vertical-alignment: center;
+                    }
+                    Caption {
+                        horizontal-stretch: 1;
+                        text: Notes.available ? "Point at the graph for values · click it to add a note there" : "Point at the graph for values";
+                        vertical-alignment: center;
+                        wrap: no-wrap;
+                        overflow: elide;
+                    }
+                    if Notes.available: MButton {
+                        y: (parent.height - self.height) / 2;
+                        text: "Add note";
+                        kind: 3;
+                        icon: Icons.note;
+                        clicked => { Notes.compose(""); }
+                    }
+                }
                 GlucoseGraph {
                     vertical-stretch: 1;
                     graph-style: Dashboard.graph-style;
                     line-path: Dashboard.line-path;
                     dots: Dashboard.dots;
+                    points: Dashboard.points;
+                    notes: Dashboard.notes;
                     y-labels: Dashboard.y-labels;
                     x-labels: Dashboard.x-labels;
                     band-top: Dashboard.band-top;
                     band-bottom: Dashboard.band-bottom;
+                    notes-enabled: Notes.available;
+                    add-note(when) => { Notes.compose(when); }
+                    edit-note(n) => { Notes.edit(n); }
                 }
             }
         }
@@ -484,7 +561,7 @@ component ReportsPage inherits Rectangle {
                     padding: 20px;
                     spacing: 8px;
                     Title { text: "Daily glucose profiles"; }
-                    Caption { text: "Share of the day in the target range and the course of each day. Click a day for details."; }
+                    Caption { text: "Share of the day in the target range and the course of each day. Point at a day to read values, click it for details and notes."; }
                     HorizontalLayout {
                         spacing: 8px;
                         padding-top: 4px;
@@ -1066,6 +1143,7 @@ component AppearancePage inherits Rectangle {
         stats.checked = a.show-stats;
         shape.selected = a.tray-shape;
         arrow.checked = a.tray-arrow;
+        arrow-separate.checked = a.tray-arrow-separate;
         ink.selected = a.tray-text;
         font.selected = a.tray-font;
     }
@@ -1085,6 +1163,7 @@ component AppearancePage inherits Rectangle {
             show-stats: stats.checked,
             tray-shape: shape.selected,
             tray-arrow: arrow.checked,
+            tray-arrow-separate: arrow-separate.checked,
             tray-text: ink.selected,
             tray-font: font.selected,
         };
@@ -1106,21 +1185,29 @@ component AppearancePage inherits Rectangle {
                 HorizontalLayout {
                     spacing: 24px;
                     Rectangle {
-                        width: 132px;
+                        width: arrow.checked && arrow-separate.checked ? 176px : 132px;
                         height: 132px;
                         border-radius: Theme.radius-m;
                         background: Theme.dark ? #202020 : #f3f3f3;
                         border-width: 1px;
                         border-color: Theme.outline-variant;
-                        VerticalLayout {
+                        preview := VerticalLayout {
                             alignment: center;
                             spacing: 10px;
+                            property <bool> two: arrow.checked && arrow-separate.checked;
                             HorizontalLayout {
                                 alignment: center;
+                                spacing: 4px;
                                 Image {
-                                    width: 64px;
-                                    height: 64px;
+                                    width: preview.two ? 52px : 64px;
+                                    height: self.width;
                                     source: SettingsBridge.tray-preview;
+                                    image-rendering: pixelated;
+                                }
+                                if preview.two: Image {
+                                    width: 52px;
+                                    height: self.width;
+                                    source: SettingsBridge.tray-arrow-preview;
                                     image-rendering: pixelated;
                                 }
                             }
@@ -1131,6 +1218,12 @@ component AppearancePage inherits Rectangle {
                                     width: SettingsBridge.tray-actual-size * 1px;
                                     height: SettingsBridge.tray-actual-size * 1px;
                                     source: SettingsBridge.tray-preview-actual;
+                                    image-rendering: pixelated;
+                                }
+                                if preview.two: Image {
+                                    width: SettingsBridge.tray-actual-size * 1px;
+                                    height: SettingsBridge.tray-actual-size * 1px;
+                                    source: SettingsBridge.tray-arrow-preview-actual;
                                     image-rendering: pixelated;
                                 }
                                 Caption {
@@ -1174,7 +1267,13 @@ component AppearancePage inherits Rectangle {
                         }
                         arrow := MSwitch {
                             text: "Show the trend arrow";
-                            supporting: "The number gets a little narrower to make room";
+                            supporting: arrow-separate.checked ? "As a second tray icon next to the number" : "Inside the number icon – the number gets a little narrower to make room";
+                            toggled => { root.emit(); }
+                        }
+                        arrow-separate := MSwitch {
+                            enabled: arrow.checked;
+                            text: "Show the arrow as a separate tray icon";
+                            supporting: "Keeps the number large and readable. Windows may first put the new icon among the hidden icons – drag it next to the value to keep it visible.";
                             toggled => { root.emit(); }
                         }
                     }
@@ -1291,6 +1390,135 @@ component AppearancePage inherits Rectangle {
                             changed => { root.emit(); }
                         }
                     }
+                }
+            }
+        }
+    }
+}
+
+component LinkRow inherits Rectangle {
+    in property <string> icon;
+    in property <string> title;
+    in property <string> subtitle;
+    callback clicked;
+    height: 56px;
+    border-radius: Theme.radius-m;
+    background: touch.has-hover ? Theme.on-surface.with-alpha(0.06) : transparent;
+    HorizontalLayout {
+        padding-left: 12px;
+        padding-right: 12px;
+        spacing: 14px;
+        Icon {
+            y: (parent.height - self.height) / 2;
+            path: root.icon;
+            tint: Theme.primary;
+        }
+        VerticalLayout {
+            horizontal-stretch: 1;
+            alignment: center;
+            Text {
+                text: root.title;
+                color: Theme.on-surface;
+            }
+            Caption {
+                text: root.subtitle;
+                wrap: no-wrap;
+                overflow: elide;
+            }
+        }
+        Icon {
+            y: (parent.height - self.height) / 2;
+            width: 18px;
+            height: 18px;
+            path: Icons.open-in-new;
+        }
+    }
+    touch := TouchArea {
+        mouse-cursor: pointer;
+        clicked => { root.clicked(); }
+    }
+}
+
+component AboutPage inherits Rectangle {
+    ScrollView {
+        VerticalLayout {
+            padding: 24px;
+            spacing: Theme.gap;
+
+            HorizontalLayout {
+                spacing: 16px;
+                AppLogo {
+                    width: 56px;
+                    height: 56px;
+                    y: (parent.height - self.height) / 2;
+                }
+                VerticalLayout {
+                    alignment: center;
+                    Text {
+                        text: "Genius LibreLinkUp";
+                        font-size: 28px;
+                        color: Theme.on-surface;
+                    }
+                    Caption {
+                        text: "Version " + About.version + " · free software under the GNU GPL v3";
+                        font-size: 13px;
+                    }
+                }
+                Rectangle { horizontal-stretch: 1; }
+            }
+
+            SettingsSection {
+                title: "Open source on GitHub";
+                subtitle: "The code, the documentation and every release are public. Ideas, bug reports and pull requests are welcome.";
+                VerticalLayout {
+                    spacing: 2px;
+                    LinkRow {
+                        icon: Icons.code;
+                        title: "Source code";
+                        subtitle: "github.com/NUCL3ARN30N/genius-librelinkup";
+                        clicked => { About.open-link(0); }
+                    }
+                    LinkRow {
+                        icon: Icons.note;
+                        title: "Report a problem or suggest a feature";
+                        subtitle: "GitHub issues – please mention your version and operating system";
+                        clicked => { About.open-link(1); }
+                    }
+                    LinkRow {
+                        icon: Icons.refresh;
+                        title: "Releases & changelog";
+                        subtitle: "Downloads for Windows and Linux and what changed in each version";
+                        clicked => { About.open-link(2); }
+                    }
+                    LinkRow {
+                        icon: Icons.info;
+                        title: "Documentation";
+                        subtitle: "Features, reports, the caching server and where your data is stored";
+                        clicked => { About.open-link(4); }
+                    }
+                    LinkRow {
+                        icon: Icons.lock;
+                        title: "Licence";
+                        subtitle: "GNU General Public License v3.0";
+                        clicked => { About.open-link(3); }
+                    }
+                }
+            }
+
+            if About.changes != "": SettingsSection {
+                title: "What's new in " + About.version;
+                Text {
+                    text: About.changes;
+                    color: Theme.on-surface;
+                    wrap: word-wrap;
+                }
+            }
+
+            SettingsSection {
+                title: "Disclaimer";
+                Caption {
+                    text: "Genius LibreLinkUp is an unofficial tool and not affiliated with Abbott. It uses the undocumented LibreLinkUp API, which can change at any time. Never make treatment decisions based on this app – use your sensor reader or the official app.";
+                    font-size: 13px;
                 }
             }
         }
@@ -1524,6 +1752,15 @@ export component AppWindow inherits Window {
                     }
                 }
                 Rectangle { vertical-stretch: 1; }
+                HorizontalLayout {
+                    alignment: center;
+                    NavItem {
+                        icon: Icons.info;
+                        label: "About";
+                        selected: root.page == 5;
+                        clicked => { root.page = 5; }
+                    }
+                }
             }
         }
 
@@ -1539,6 +1776,7 @@ export component AppWindow inherits Window {
             if root.page == 2: SettingsPage { }
             if root.page == 3: DevPage { }
             if root.page == 4: AppearancePage { }
+            if root.page == 5: AboutPage { }
         }
     }
 
@@ -1717,6 +1955,13 @@ export component AppWindow inherits Window {
                         color: Theme.on-surface;
                         vertical-alignment: center;
                     }
+                    if Notes.available: MButton {
+                        y: (parent.height - self.height) / 2;
+                        text: "Add note";
+                        kind: 3;
+                        icon: Icons.note;
+                        clicked => { Notes.compose(Reports.detail-date + " 12:00"); }
+                    }
                     IconButton {
                         icon: Icons.chevron-left;
                         enabled: Reports.detail-prev >= 0;
@@ -1738,10 +1983,15 @@ export component AppWindow inherits Window {
                     graph-style: Dashboard.graph-style;
                     line-path: Reports.detail-line;
                     dots: Reports.detail-dots;
+                    points: Reports.detail-points;
+                    notes: Reports.detail-notes;
                     y-labels: Reports.detail-y-labels;
                     x-labels: Reports.detail-x-labels;
                     band-top: Reports.detail-band-top;
                     band-bottom: Reports.detail-band-bottom;
+                    notes-enabled: Notes.available;
+                    add-note(when) => { Notes.compose(when); }
+                    edit-note(n) => { Notes.edit(n); }
                 }
                 HorizontalLayout {
                     spacing: 32px;
@@ -1812,6 +2062,53 @@ export component AppWindow inherits Window {
                         SettingsBridge.wipe-open = false;
                         SettingsBridge.wipe-data(wipe-log.checked);
                     }
+                }
+            }
+        }
+    }
+
+    if Notes.open: Overlay {
+        DialogCard {
+            x: (parent.width - self.width) / 2;
+            y: (parent.height - self.height) / 2;
+            width: 480px;
+            height: Notes.error != "" ? 390px : 330px;
+            title: Notes.id == "" ? "Add note" : "Edit note";
+            icon: Icons.note;
+            init => { note-text.focus-input(); }
+            note-text := TextField {
+                label: "Note";
+                placeholder: "e.g. pizza, 6 u insulin, 30 min walk";
+                text <=> Notes.text;
+                accepted => { Notes.save(Notes.id, Notes.when, Notes.text); }
+            }
+            TextField {
+                label: "Time (YYYY-MM-DD HH:MM, or just HH:MM for today)";
+                text <=> Notes.when;
+                accepted => { Notes.save(Notes.id, Notes.when, Notes.text); }
+            }
+            if Notes.error != "": Banner { text: Notes.error; }
+            Rectangle { vertical-stretch: 1; }
+            HorizontalLayout {
+                spacing: 8px;
+                if Notes.id != "": MButton {
+                    text: "Delete";
+                    kind: 3;
+                    icon: Icons.delete;
+                    clicked => { Notes.delete(Notes.id); }
+                }
+                Rectangle { horizontal-stretch: 1; }
+                MButton {
+                    text: "Cancel";
+                    kind: 3;
+                    clicked => { Notes.open = false; }
+                }
+                MButton {
+                    text: "Save";
+                    kind: 0;
+                    icon: Icons.check;
+                    enabled: Notes.text != "";
+                    clicked => { Notes.save(Notes.id, Notes.when, Notes.text); }
                 }
             }
         }

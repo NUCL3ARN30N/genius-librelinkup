@@ -6,8 +6,9 @@ use slint::SharedString;
 
 use crate::api::Reading;
 use crate::stats::{self, Light, Report};
+use crate::store::Note;
 use crate::units::{Units, level};
-use crate::{AxisLabel, DayCard, Dot, Insight, StatItem, TirRow};
+use crate::{AxisLabel, DayCard, Dot, GraphPoint, Insight, NoteMark, StatItem, TirRow};
 
 const VW: f32 = 1000.0;
 const VH: f32 = 400.0;
@@ -64,9 +65,59 @@ fn polyline(points: impl Iterator<Item = (f32, f32, DateTime<Utc>)>, max_gap: Du
     out
 }
 
+/// Time format of the note dialog (also accepted when parsing it back, see [`parse_note_time`]).
+pub const NOTE_TIME_FORMAT: &str = "%Y-%m-%d %H:%M";
+
+pub fn note_time_text(t: DateTime<Utc>) -> String {
+    t.with_timezone(&Local).format(NOTE_TIME_FORMAT).to_string()
+}
+
+/// Parses the note dialog's time: a full local date and time, or only `HH:MM` for today.
+pub fn parse_note_time(text: &str) -> Option<DateTime<Utc>> {
+    let text = text.trim();
+    let local = ["%Y-%m-%d %H:%M", "%Y-%m-%d %H:%M:%S", "%d.%m.%Y %H:%M", "%Y-%m-%dT%H:%M"]
+        .iter()
+        .find_map(|f| chrono::NaiveDateTime::parse_from_str(text, f).ok())
+        .or_else(|| {
+            let time = chrono::NaiveTime::parse_from_str(text, "%H:%M").ok()?;
+            Some(Local::now().date_naive().and_time(time))
+        })?;
+    local.and_local_timezone(Local).earliest().map(|t| t.with_timezone(&Utc))
+}
+
+/// Index of the entry whose x (sorted ascending) is nearest to `x`, if within `max_dx`.
+pub fn nearest_index(len: usize, x_at: impl Fn(usize) -> f32, x: f32, max_dx: f32) -> i32 {
+    let (mut lo, mut hi) = (0, len);
+    while lo < hi {
+        let mid = (lo + hi) / 2;
+        if x_at(mid) < x { lo = mid + 1 } else { hi = mid }
+    }
+    [lo.checked_sub(1), (lo < len).then_some(lo)]
+        .into_iter()
+        .flatten()
+        .map(|i| (i, (x_at(i) - x).abs()))
+        .min_by(|a, b| a.1.total_cmp(&b.1))
+        .filter(|(_, d)| *d <= max_dx)
+        .map(|(i, _)| i as i32)
+        .unwrap_or(-1)
+}
+
+pub fn note_mark(n: &Note, x: f32, time_format: &str) -> NoteMark {
+    let t = n.at().with_timezone(&Local);
+    NoteMark {
+        x,
+        id: s(n.id.clone()),
+        time: s(t.format(time_format).to_string()),
+        when: s(t.format(NOTE_TIME_FORMAT).to_string()),
+        text: s(n.text.clone()),
+    }
+}
+
 pub struct GraphModel {
     pub path: String,
     pub dots: Vec<Dot>,
+    pub points: Vec<GraphPoint>,
+    pub notes: Vec<NoteMark>,
     pub y_labels: Vec<AxisLabel>,
     pub x_labels: Vec<AxisLabel>,
     pub band_top: f32,
@@ -75,14 +126,22 @@ pub struct GraphModel {
 
 /// Dashboard graph for the last `hours`. `style`: 0 line, 1 dots, 2 line + dots. The last dot is
 /// always the current reading.
-pub fn graph(readings: &[Reading], units: Units, target_low: f32, target_high: f32, hours: i64, style: u8) -> GraphModel {
+pub fn graph(
+    readings: &[Reading],
+    notes: &[Note],
+    units: Units,
+    target_low: f32,
+    target_high: f32,
+    hours: i64,
+    style: u8,
+) -> GraphModel {
     let now = Utc::now();
     let label_every = match hours {
         0..=6 => 1,
         7..=12 => 2,
         _ => 4,
     };
-    graph_between(readings, units, (target_low, target_high), now - Duration::hours(hours), now, style, label_every, true)
+    graph_between(readings, notes, units, (target_low, target_high), now - Duration::hours(hours), now, style, label_every, true)
 }
 
 /// Graph of `[start, end)` with x labels every `label_every` local hours. `mark_last` adds the
@@ -90,6 +149,7 @@ pub fn graph(readings: &[Reading], units: Units, target_low: f32, target_high: f
 #[allow(clippy::too_many_arguments)]
 fn graph_between(
     readings: &[Reading],
+    notes: &[Note],
     units: Units,
     (target_low, target_high): (f32, f32),
     start: DateTime<Utc>,
@@ -128,6 +188,26 @@ fn graph_between(
         dots.extend(visible.last().map(|r| dot(r)));
     }
 
+    // hover targets; times of other days than the last one get the weekday
+    let last_day = (end - Duration::seconds(1)).with_timezone(&Local).date_naive();
+    let time_format = |t: DateTime<Utc>| if t.with_timezone(&Local).date_naive() == last_day { "%H:%M" } else { "%a %H:%M" };
+    let points = visible
+        .iter()
+        .map(|r| GraphPoint {
+            x: fx(r.time),
+            y: fy(r.mg_dl),
+            time: s(r.time.with_timezone(&Local).format(time_format(r.time)).to_string()),
+            value: s(units.fmt_unit(r.mg_dl)),
+            level: level(r.mg_dl, target_low, target_high),
+            when: s(note_time_text(r.time)),
+        })
+        .collect();
+    let notes = notes
+        .iter()
+        .filter(|n| n.at() >= start && n.at() < end)
+        .map(|n| note_mark(n, fx(n.at()), time_format(n.at())))
+        .collect();
+
     // x labels on full local hours, spaced so they don't crowd
     let local_start = start.with_timezone(&Local);
     let mut t = local_start
@@ -146,6 +226,8 @@ fn graph_between(
     GraphModel {
         path,
         dots,
+        points,
+        notes,
         y_labels: y_labels(units, ymax),
         x_labels,
         band_top: fy(target_high),
@@ -175,7 +257,7 @@ pub struct ReportModel {
     pub band_top: f32,
     pub band_bottom: f32,
     pub insights: Vec<Insight>,
-    pub days: Vec<DayCard>,
+    pub days: Vec<DayCell>,
     pub day_band_top: f32,
     pub day_band_bottom: f32,
 }
@@ -213,16 +295,53 @@ pub fn day_from_key(key: i32) -> Option<NaiveDate> {
     NaiveDate::from_num_days_from_ce_opt(key)
 }
 
+/// A [`DayCard`] as plain data: its models are created on the UI thread ([`DayCell::into_card`]).
+#[derive(Default)]
+pub struct DayCell {
+    pub key: i32,
+    pub day: SharedString,
+    pub month: SharedString,
+    pub path: SharedString,
+    pub has_data: bool,
+    pub in_range: SharedString,
+    pub level: i32,
+    pub points: Vec<GraphPoint>,
+    pub notes: Vec<NoteMark>,
+}
+
+impl DayCell {
+    pub fn into_card(self) -> DayCard {
+        DayCard {
+            key: self.key,
+            day: self.day,
+            month: self.month,
+            path: self.path,
+            has_data: self.has_data,
+            in_range: self.in_range,
+            level: self.level,
+            points: slint::ModelRc::new(slint::VecModel::from(self.points)),
+            notes: slint::ModelRc::new(slint::VecModel::from(self.notes)),
+        }
+    }
+}
+
 /// Calendar cells (Monday first) from the first to the last day with data, padded to whole weeks.
-fn calendar(daily: &[stats::DayProfile], dfy: &dyn Fn(f32) -> f32, target_low: f32, target_high: f32) -> Vec<DayCard> {
+fn calendar(
+    daily: &[stats::DayProfile],
+    notes: &[Note],
+    units: Units,
+    dfy: &dyn Fn(f32) -> f32,
+    target_low: f32,
+    target_high: f32,
+) -> Vec<DayCell> {
     let with_data = |d: &&stats::DayProfile| d.points.len() > 1;
     let (Some(first), Some(last)) = (daily.iter().position(|d| with_data(&d)), daily.iter().rposition(|d| with_data(&d)))
     else {
         return Vec::new();
     };
     let days = &daily[first..=last];
-    let pad = |n: usize| (0..n).map(|_| DayCard { key: -1, ..Default::default() });
-    let mut cells: Vec<DayCard> = pad(days[0].date.weekday().num_days_from_monday() as usize).collect();
+    let pad = |n: usize| (0..n).map(|_| DayCell { key: -1, ..Default::default() });
+    let mut cells: Vec<DayCell> = pad(days[0].date.weekday().num_days_from_monday() as usize).collect();
     for (i, d) in days.iter().enumerate() {
         let has_data = d.points.len() > 1;
         let mut path = String::new();
@@ -235,13 +354,39 @@ fn calendar(daily: &[stats::DayProfile], dfy: &dyn Fn(f32) -> f32, target_low: f
             path.push_str(&format!("{cmd}{:.1} {:.1} ", fx * VW, dfy(*v) * VH));
             last_x = Some(*fx);
         }
+        // hover targets, at most one per 5 minutes
+        let mut points: Vec<GraphPoint> = Vec::new();
+        let mut last_slot = -1;
+        for (fx, v) in &d.points {
+            let slot = (fx * 288.0) as i32;
+            if slot != last_slot {
+                let minute = (fx * 1440.0) as u32;
+                points.push(GraphPoint {
+                    x: *fx,
+                    y: dfy(*v),
+                    time: s(format!("{:02}:{:02}", minute / 60, minute % 60)),
+                    value: s(units.fmt(*v)),
+                    level: level(*v, target_low, target_high),
+                    when: SharedString::default(),
+                });
+                last_slot = slot;
+            }
+        }
+        let day_notes: Vec<NoteMark> = notes
+            .iter()
+            .filter(|n| n.at().with_timezone(&Local).date_naive() == d.date)
+            .map(|n| {
+                let local = n.at().with_timezone(&Local);
+                note_mark(n, local.num_seconds_from_midnight() as f32 / 86400.0, "%H:%M")
+            })
+            .collect();
         let in_range = if d.points.is_empty() {
             0.0
         } else {
             d.points.iter().filter(|(_, v)| (target_low..=target_high).contains(v)).count() as f32 * 100.0
                 / d.points.len() as f32
         };
-        cells.push(DayCard {
+        cells.push(DayCell {
             key: day_key(d.date),
             day: s(d.date.day().to_string()),
             // month name on the first shown day and on every 1st
@@ -251,6 +396,8 @@ fn calendar(daily: &[stats::DayProfile], dfy: &dyn Fn(f32) -> f32, target_low: f
             in_range: s(if has_data { format!("{in_range:.0} %") } else { String::new() }),
             // goal > 70 % in range; below 50 % is shown like a high
             level: if in_range >= 70.0 { 3 } else if in_range >= 50.0 { 4 } else { 2 },
+            points,
+            notes: day_notes,
         });
     }
     let rest = (7 - cells.len() % 7) % 7;
@@ -266,9 +413,11 @@ pub struct DayDetailModel {
 }
 
 /// One local day `[start, end)` for the details dialog.
+#[allow(clippy::too_many_arguments)]
 pub fn day_detail(
     date: NaiveDate,
     readings: &[Reading],
+    notes: &[Note],
     (start, end): (DateTime<Utc>, DateTime<Utc>),
     u: Units,
     target_low: f32,
@@ -293,13 +442,13 @@ pub fn day_detail(
     };
     DayDetailModel {
         title: date.format("%A, %d %B %Y").to_string(),
-        graph: graph_between(readings, u, (target_low, target_high), start, end, style, 3, false),
+        graph: graph_between(readings, notes, u, (target_low, target_high), start, end, style, 3, false),
         stats,
         tir: tir_rows(&r, u, target_low, target_high),
     }
 }
 
-pub fn report_model(r: &Report, units: Units, target_low: f32, target_high: f32) -> ReportModel {
+pub fn report_model(r: &Report, notes: &[Note], units: Units, target_low: f32, target_high: f32) -> ReportModel {
     let fmt_date = |t: Option<DateTime<Utc>>| {
         t.map(|t| t.with_timezone(&Local).format("%d %b %Y").to_string()).unwrap_or_default()
     };
@@ -369,7 +518,7 @@ pub fn report_model(r: &Report, units: Units, target_low: f32, target_high: f32)
     // daily profiles share one fixed scale
     let day_max = if u.mg_dl { 350.0 } else { 21.0 * crate::store::MMOL_FACTOR };
     let dfy = |v: f32| (1.0 - v.min(day_max) / day_max).clamp(0.0, 1.0);
-    let days = calendar(&r.daily, &dfy, target_low, target_high);
+    let days = calendar(&r.daily, notes, u, &dfy, target_low, target_high);
 
     ReportModel {
         title: "Glucose report".into(),
@@ -422,7 +571,7 @@ mod tests {
         };
         // Tue 27 Oct 2026 has no data and is trimmed; Wed 28 .. Sat 31 with a gap on Thu
         let daily = vec![day(2026, 10, 27, 0), day(2026, 10, 28, 5), day(2026, 10, 29, 0), day(2026, 10, 30, 5)];
-        let cells = calendar(&daily, &|v| v / 400.0, 70.0, 180.0);
+        let cells = calendar(&daily, &[], Units { mg_dl: true }, &|v| v / 400.0, 70.0, 180.0);
         assert_eq!(cells.len(), 7);
         assert_eq!(cells.iter().take_while(|c| c.key < 0).count(), 2); // Mon, Tue
         assert_eq!(cells[2].day, "28");
@@ -431,6 +580,29 @@ mod tests {
         assert_eq!(cells[2].in_range, "100 %");
         assert!(cells[5..].iter().all(|c| c.key < 0));
         assert_eq!(day_from_key(cells[2].key), NaiveDate::from_ymd_opt(2026, 10, 28));
-        assert!(calendar(&[day(2026, 10, 27, 0)], &|v| v, 70.0, 180.0).is_empty());
+        assert!(calendar(&[day(2026, 10, 27, 0)], &[], Units { mg_dl: true }, &|v| v, 70.0, 180.0).is_empty());
+    }
+
+    #[test]
+    fn nearest_index_respects_distance() {
+        let xs = [0.1, 0.2, 0.5, 0.9];
+        let at = |i: usize| xs[i];
+        assert_eq!(nearest_index(4, at, 0.0, 0.2), 0);
+        assert_eq!(nearest_index(4, at, 0.16, 0.2), 1);
+        assert_eq!(nearest_index(4, at, 0.36, 0.2), 2);
+        assert_eq!(nearest_index(4, at, 1.0, 0.2), 3);
+        assert_eq!(nearest_index(4, at, 0.7, 0.1), -1);
+        assert_eq!(nearest_index(0, at, 0.5, 1.0), -1);
+    }
+
+    #[test]
+    fn parses_note_times() {
+        let t = parse_note_time("2026-10-29 14:30").unwrap();
+        assert_eq!(note_time_text(t), "2026-10-29 14:30");
+        assert_eq!(parse_note_time(" 29.10.2026 14:30 "), Some(t));
+        let today = parse_note_time("07:05").unwrap().with_timezone(&Local);
+        assert_eq!((today.date_naive(), today.hour(), today.minute()), (Local::now().date_naive(), 7, 5));
+        assert!(parse_note_time("tomorrow").is_none());
+        assert!(parse_note_time("25:00").is_none());
     }
 }

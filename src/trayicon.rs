@@ -171,18 +171,19 @@ fn pixel_arrow(trend: u8, left: f32, cy: f32, width: f32, color: &str) -> String
     }
 }
 
-/// Builds the SVG for one icon. `n` is the pixel size.
-pub fn svg(text: &str, trend: u8, color: Rgba, style: &TrayStyle, n: u32) -> String {
-    let n = n as f32;
-    let bg = hex(color);
-    let has_shape = style.shape != 0;
-    let fg = match style.text_color {
+/// Foreground (text/arrow) colour for the background `color`.
+fn foreground(color: Rgba, style: &TrayStyle) -> String {
+    match style.text_color {
         1 => "#ffffff".to_string(),
         2 => "#000000".to_string(),
-        _ if has_shape => if is_light(color) { "#000000".into() } else { "#ffffff".into() },
-        _ => bg.clone(),
-    };
+        _ if style.shape != 0 => if is_light(color) { "#000000".into() } else { "#ffffff".into() },
+        _ => hex(color),
+    }
+}
 
+/// SVG header plus the background shape.
+fn open_svg(color: Rgba, style: &TrayStyle, n: f32) -> String {
+    let bg = hex(color);
     let mut out = format!(r#"<svg xmlns="http://www.w3.org/2000/svg" width="{n}" height="{n}" viewBox="0 0 {n} {n}">"#);
     match style.shape {
         1 => out.push_str(&format!(
@@ -203,8 +204,41 @@ pub fn svg(text: &str, trend: u8, color: Rgba, style: &TrayStyle, n: u32) -> Str
         )),
         _ => {}
     }
+    out
+}
 
-    let show_arrow = style.arrow && (1..=5).contains(&trend);
+/// Vertical centre of the shape's body (the drop is heavier at the bottom).
+fn content_center(style: &TrayStyle, n: f32) -> f32 {
+    if style.shape == 1 { n * 0.6 } else { n / 2.0 }
+}
+
+fn find_text(group: &usvg::Group) -> Option<&usvg::Text> {
+    group.children().iter().find_map(|node| match node {
+        usvg::Node::Text(t) => Some(&**t),
+        usvg::Node::Group(g) => find_text(g),
+        _ => None,
+    })
+}
+
+/// Tight bounds (x, y, width, height) of the glyphs of a `<text>` element, laid out with the
+/// system fonts. `None` when no font could render it.
+fn measure_text(element: &str, n: f32) -> Option<(f32, f32, f32, f32)> {
+    let svg = format!(r#"<svg xmlns="http://www.w3.org/2000/svg" width="{n}" height="{n}">{element}</svg>"#);
+    with_options(|opt| {
+        let tree = usvg::Tree::from_str(&svg, opt).ok()?;
+        let b = find_text(tree.root())?.flattened().abs_bounding_box();
+        (b.width() > 0.0 && b.height() > 0.0).then(|| (b.x(), b.y(), b.width(), b.height()))
+    })
+}
+
+/// Builds the SVG for one icon. `n` is the pixel size.
+pub fn svg(text: &str, trend: u8, color: Rgba, style: &TrayStyle, n: u32) -> String {
+    let n = n as f32;
+    let has_shape = style.shape != 0;
+    let fg = foreground(color, style);
+    let mut out = open_svg(color, style, n);
+
+    let show_arrow = style.arrow && !style.arrow_separate && (1..=5).contains(&trend);
     // keep content inside the shape: circles and drops are narrower towards the edges
     let pad = match style.shape {
         0 => 0.0,
@@ -221,23 +255,40 @@ pub fn svg(text: &str, trend: u8, color: Rgba, style: &TrayStyle, n: u32) -> Str
     if style.shape == 1 {
         fs *= 0.86;
     }
-    let est = estimated_width(text, style.font) * fs;
-    let squeeze = if est > avail {
-        format!(r#" textLength="{avail:.2}" lengthAdjust="spacingAndGlyphs""#)
-    } else {
-        String::new()
-    };
-    let text_w = est.min(avail);
-    let x = pad + (avail - text_w) / 2.0;
-    let baseline = if style.shape == 1 { n * 0.6 + fs * 0.33 } else { n / 2.0 + fs * 0.35 };
+    let cy = content_center(style, n);
     let escaped: String = text.chars().filter(|c| c.is_ascii_alphanumeric() || ".,-".contains(*c)).collect();
-    out.push_str(&format!(
-        r#"<text x="{x:.2}" y="{baseline:.2}" font-family="{family}" font-weight="700" font-stretch="{stretch}" font-size="{fs:.2}" fill="{fg}"{squeeze}>{escaped}</text>"#
-    ));
+    let attrs = format!(r#"font-family="{family}" font-weight="700" font-stretch="{stretch}" font-size="{fs:.2}" fill="{fg}""#);
+    let max_h = n - 2.0 * pad;
+    match measure_text(&format!(r#"<text x="0" y="0" {attrs}>{escaped}</text>"#), n) {
+        // centre the actual glyphs (font metrics differ a lot between systems), with the
+        // top-left corner on a whole pixel so the edges stay crisp
+        Some((bx, by, bw, bh)) => {
+            let sy = (max_h / bh).min(1.0);
+            let sx = (avail / bw).min(sy);
+            let left = (pad + (avail - bw * sx) / 2.0).round();
+            let top = (cy - bh * sy / 2.0).round();
+            out.push_str(&format!(
+                r#"<text x="0" y="0" transform="matrix({sx:.4} 0 0 {sy:.4} {:.2} {:.2})" {attrs}>{escaped}</text>"#,
+                left - bx * sx,
+                top - by * sy
+            ));
+        }
+        // no usable font: place by estimated metrics
+        None => {
+            let est = estimated_width(text, style.font) * fs;
+            let squeeze = if est > avail {
+                format!(r#" textLength="{avail:.2}" lengthAdjust="spacingAndGlyphs""#)
+            } else {
+                String::new()
+            };
+            let x = pad + (avail - est.min(avail)) / 2.0;
+            let baseline = if style.shape == 1 { n * 0.6 + fs * 0.33 } else { n / 2.0 + fs * 0.35 };
+            out.push_str(&format!(r#"<text x="{x:.2}" y="{baseline:.2}" {attrs}{squeeze}>{escaped}</text>"#));
+        }
+    }
     if show_arrow {
-        let cy = if style.shape == 1 { n * 0.62 } else { n / 2.0 };
         if n < 40.0 {
-            out.push_str(&pixel_arrow(trend, n - pad - arrow_w, cy, arrow_w, &fg));
+            out.push_str(&pixel_arrow(trend, n - pad - arrow_w, cy + if style.shape == 1 { n * 0.02 } else { 0.0 }, arrow_w, &fg));
         } else {
             out.push_str(&arrow(trend, n - pad - arrow_w / 2.0, cy, arrow_w, &fg));
         }
@@ -246,11 +297,53 @@ pub fn svg(text: &str, trend: u8, color: Rgba, style: &TrayStyle, n: u32) -> Str
     out
 }
 
+/// The trend arrow on its own (for the separate tray icon), as large as the shape allows. An
+/// unknown trend shows a short bar.
+pub fn svg_arrow(trend: u8, color: Rgba, style: &TrayStyle, n: u32) -> String {
+    let n = n as f32;
+    let fg = foreground(color, style);
+    let mut out = open_svg(color, style, n);
+    // side of the box the arrow fits in: the inscribed square of round shapes is smaller
+    let w = n * match style.shape {
+        0 => 0.94,
+        1 => 0.5,
+        2 => 0.62,
+        _ => 0.7,
+    };
+    let (cx, cy) = (n / 2.0, content_center(style, n));
+    if (1..=5).contains(&trend) {
+        // axis-aligned arrows on whole pixels; once there is room for a stem a diagonal reads
+        // better as one solid rotated arrow than as the corner + stem used next to the number
+        if n < 40.0 && (matches!(trend, 1 | 3 | 5) || w < 10.0) {
+            out.push_str(&pixel_arrow(trend, (cx - w / 2.0).floor(), cy, w, &fg));
+        } else {
+            out.push_str(&arrow(trend, cx, cy, w, &fg));
+        }
+    } else {
+        let (bw, bh) = ((w * 0.5).round().max(2.0), (w * 0.16).round().max(1.0));
+        out.push_str(&format!(
+            r#"<rect fill="{fg}" x="{}" y="{}" width="{bw}" height="{bh}" shape-rendering="crispEdges"/>"#,
+            (cx - bw / 2.0).round(),
+            (cy - bh / 2.0).round()
+        ));
+    }
+    out.push_str("</svg>");
+    out
+}
+
 /// Renders to straight (non-premultiplied) RGBA.
 pub fn render(text: &str, trend: u8, color: Rgba, style: &TrayStyle, size: u32) -> Vec<u8> {
-    let svg = svg(text, trend, color, style, size);
+    rasterize(&svg(text, trend, color, style, size), color, size)
+}
+
+/// Renders the separate trend-arrow icon.
+pub fn render_arrow(trend: u8, color: Rgba, style: &TrayStyle, size: u32) -> Vec<u8> {
+    rasterize(&svg_arrow(trend, color, style, size), color, size)
+}
+
+fn rasterize(svg: &str, color: Rgba, size: u32) -> Vec<u8> {
     let mut pixmap = tiny_skia::Pixmap::new(size, size).expect("pixmap");
-    let ok = with_options(|opt| match usvg::Tree::from_str(&svg, opt) {
+    let ok = with_options(|opt| match usvg::Tree::from_str(svg, opt) {
         Ok(tree) => {
             resvg::render(&tree, tiny_skia::Transform::default(), &mut pixmap.as_mut());
             true
@@ -300,10 +393,16 @@ mod tests {
         let opt = usvg::Options::default();
         for shape in 0..4 {
             for font in 0..3 {
-                let style = TrayStyle { shape, font, arrow: true, text_color: 0 };
-                for (text, trend) in [("6.2", 4), ("112", 1), ("LO", 0), ("-", 3)] {
-                    let s = svg(text, trend, [0x2e, 0x7d, 0x32, 0xff], &style, 24);
-                    usvg::Tree::from_str(&s, &opt).unwrap_or_else(|e| panic!("{e}: {s}"));
+                for arrow_separate in [false, true] {
+                    let style = TrayStyle { shape, font, arrow: true, text_color: 0, arrow_separate };
+                    for (text, trend) in [("6.2", 4), ("112", 1), ("LO", 0), ("-", 3)] {
+                        for size in [16, 24, 48] {
+                            let s = svg(text, trend, [0x2e, 0x7d, 0x32, 0xff], &style, size);
+                            usvg::Tree::from_str(&s, &opt).unwrap_or_else(|e| panic!("{e}: {s}"));
+                            let s = svg_arrow(trend, [0x2e, 0x7d, 0x32, 0xff], &style, size);
+                            usvg::Tree::from_str(&s, &opt).unwrap_or_else(|e| panic!("{e}: {s}"));
+                        }
+                    }
                 }
             }
         }
@@ -315,5 +414,41 @@ mod tests {
         let px = render("6.2", 4, [0x2e, 0x7d, 0x32, 0xff], &style, 32);
         assert_eq!(px.len(), 32 * 32 * 4);
         assert!(px.chunks(4).any(|p| p[3] > 0));
+        let px = render_arrow(5, [0x2e, 0x7d, 0x32, 0xff], &style, 16);
+        assert_eq!(px.len(), 16 * 16 * 4);
+    }
+
+    /// Centre of the bounding box of the pixels that clearly differ from the background.
+    fn ink_center(px: &[u8], size: u32, bg: Rgba) -> Option<(f32, f32)> {
+        let mut bounds: Option<(u32, u32, u32, u32)> = None;
+        for y in 0..size {
+            for x in 0..size {
+                let p = &px[((y * size + x) * 4) as usize..][..4];
+                let diff: i32 = (0..3).map(|c| (p[c] as i32 - bg[c] as i32).abs()).sum();
+                if p[3] > 200 && diff > 200 {
+                    let (x0, x1, y0, y1) = bounds.unwrap_or((x, x, y, y));
+                    bounds = Some((x0.min(x), x1.max(x), y0.min(y), y1.max(y)));
+                }
+            }
+        }
+        bounds.map(|(x0, x1, y0, y1)| ((x0 + x1) as f32 / 2.0, (y0 + y1) as f32 / 2.0))
+    }
+
+    #[test]
+    fn text_is_centred_when_a_font_is_available() {
+        let style = TrayStyle { shape: 3, arrow: false, ..TrayStyle::default() };
+        let bg = [0x2e, 0x7d, 0x32, 0xff];
+        for size in [16u32, 24, 32] {
+            for text in ["6.2", "112", "10.4"] {
+                let s = svg(text, 0, bg, &style, size);
+                if !s.contains("matrix(") {
+                    return; // no system fonts in this environment
+                }
+                let px = render(text, 0, bg, &style, size);
+                let (cx, cy) = ink_center(&px, size, bg).expect("text pixels");
+                let mid = (size as f32 - 1.0) / 2.0;
+                assert!((cx - mid).abs() <= 1.0 && (cy - mid).abs() <= 1.0, "{text} at {size}px: centre {cx},{cy}");
+            }
+        }
     }
 }

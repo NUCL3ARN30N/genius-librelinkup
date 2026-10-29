@@ -53,9 +53,46 @@ pub fn set_autostart(enabled: bool) -> Result<()> {
         run.set_value("GeniusLibreLinkUp", &format!("\"{}\" --minimized", exe.display()))?;
     } else {
         let _ = run.delete_value("GeniusLibreLinkUp");
+        clear_autostart_disabled();
     }
     Ok(())
 }
+
+/// Task Manager / Settings → Startup apps keep their on/off switch apart from the Run entry, in
+/// `StartupApproved\Run`. An entry switched off there is skipped at sign-in although it exists.
+#[cfg(windows)]
+const STARTUP_APPROVED: &str = r"Software\Microsoft\Windows\CurrentVersion\Explorer\StartupApproved\Run";
+
+/// True when Windows' own startup switch for the app is off.
+#[cfg(windows)]
+pub fn autostart_disabled_by_windows() -> bool {
+    use winreg::RegKey;
+    use winreg::enums::HKEY_CURRENT_USER;
+    RegKey::predef(HKEY_CURRENT_USER)
+        .open_subkey(STARTUP_APPROVED)
+        .and_then(|k| k.get_raw_value("GeniusLibreLinkUp"))
+        // first byte: 2 (or 6) enabled, 3 (or 7, …) disabled
+        .is_ok_and(|v| v.bytes.first().is_some_and(|b| b & 1 == 1))
+}
+
+/// Turning autostart on in the app also clears Windows' "disabled" switch, otherwise the Run
+/// entry would be written but never started.
+#[cfg(windows)]
+pub fn clear_autostart_disabled() {
+    use winreg::RegKey;
+    use winreg::enums::{HKEY_CURRENT_USER, KEY_SET_VALUE};
+    if let Ok(key) = RegKey::predef(HKEY_CURRENT_USER).open_subkey_with_flags(STARTUP_APPROVED, KEY_SET_VALUE) {
+        let _ = key.delete_value("GeniusLibreLinkUp");
+    }
+}
+
+#[cfg(not(windows))]
+pub fn autostart_disabled_by_windows() -> bool {
+    false
+}
+
+#[cfg(not(windows))]
+pub fn clear_autostart_disabled() {}
 
 #[cfg(target_os = "linux")]
 pub fn set_autostart(enabled: bool) -> Result<()> {

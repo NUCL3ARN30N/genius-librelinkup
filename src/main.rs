@@ -1,5 +1,6 @@
 #![cfg_attr(all(windows, not(debug_assertions)), windows_subsystem = "windows")]
 
+mod about;
 mod alerts;
 mod config;
 mod icon;
@@ -19,7 +20,7 @@ use std::net::{TcpListener, TcpStream};
 use std::time::Duration;
 
 use anyhow::Result;
-use slint::ComponentHandle;
+use slint::{ComponentHandle, Model};
 use tokio::sync::{mpsc, oneshot};
 
 use gllu_core::{api, demo, devlog, store};
@@ -103,28 +104,37 @@ fn write_tray_previews(dir: &std::path::Path) -> Result<()> {
     std::fs::create_dir_all(dir)?;
     let samples = [("6.2", 4u8, [0x2e, 0x7d, 0x32, 0xff]), ("112", 1, [0xf9, 0xa8, 0x25, 0xff]), ("3.4", 2, [0xd3, 0x2f, 0x2f, 0xff])];
     for size in [16u32, 20, 24, 32] {
-        let (cols, rows) = (samples.len() as u32 * 3, 4u32);
+        // rows 0–3: number with arrow per shape; rows 4–7: number alone and the separate arrow icons
+        let (cols, rows) = (samples.len() as u32 * 3, 8u32);
         let cell = size + 4;
         let (w, h) = (cols * cell, rows * cell);
         let mut sheet = vec![0x30u8; (w * h * 4) as usize];
+        let mut blit = |px: &[u8], col: u32, row: u32| {
+            let (cx, cy) = (col * cell + 2, row * cell + 2);
+            for y in 0..size {
+                for x in 0..size {
+                    let s = ((y * size + x) * 4) as usize;
+                    let d = (((cy + y) * w + cx + x) * 4) as usize;
+                    let a = px[s + 3] as u32;
+                    for c in 0..3 {
+                        sheet[d + c] = ((px[s + c] as u32 * a + 0x30 * (255 - a)) / 255) as u8;
+                    }
+                    sheet[d + 3] = 255;
+                }
+            }
+        };
         for shape in 0..4u8 {
             for font in 0..3u8 {
                 for (si, (text, trend, color)) in samples.iter().enumerate() {
-                    let style = config::TrayStyle { shape, font, arrow: true, text_color: 0 };
-                    let px = trayicon::render(text, *trend, *color, &style, size);
-                    let (cx, cy) = ((si as u32 * 3 + font as u32) * cell + 2, shape as u32 * cell + 2);
-                    for y in 0..size {
-                        for x in 0..size {
-                            let s = ((y * size + x) * 4) as usize;
-                            let d = (((cy + y) * w + cx + x) * 4) as usize;
-                            let a = px[s + 3] as u32;
-                            for c in 0..3 {
-                                sheet[d + c] = ((px[s + c] as u32 * a + 0x30 * (255 - a)) / 255) as u8;
-                            }
-                            sheet[d + 3] = 255;
-                        }
-                    }
+                    let style = config::TrayStyle { shape, font, arrow: true, text_color: 0, arrow_separate: false };
+                    blit(&trayicon::render(text, *trend, *color, &style, size), si as u32 * 3 + font as u32, shape as u32);
                 }
+            }
+            let style = config::TrayStyle { shape, arrow_separate: true, ..Default::default() };
+            let (text, _, color) = samples[0];
+            blit(&trayicon::render(text, 0, color, &style, size), 0, 4 + shape as u32);
+            for trend in 0..=5u8 {
+                blit(&trayicon::render_arrow(trend, color, &style, size), 2 + trend as u32, 4 + shape as u32);
             }
         }
         let zoom = 8;
@@ -204,6 +214,9 @@ fn run_app(minimized: bool, dev: bool, demo: bool, listener: TcpListener) -> Res
     let ui = AppWindow::new()?;
     let (tx, rx) = mpsc::unbounded_channel::<Cmd>();
     wire_callbacks(&ui, &tx, &devlog);
+    let about = ui.global::<About>();
+    about.set_version(updater::CURRENT.into());
+    about.set_changes(about::changes(updater::CURRENT).into());
 
     // tray
     let has_tray = {
@@ -302,6 +315,29 @@ fn wire_callbacks(ui: &AppWindow, tx: &mpsc::UnboundedSender<Cmd>, devlog: &devl
     ui.global::<Reports>().on_period_changed(move |i| send!(t, Cmd::ReportPeriod(i.max(0) as usize)));
     let t = tx.clone();
     ui.global::<Reports>().on_open_day(move |key| send!(t, Cmd::OpenDay(key)));
+
+    let c = ui.global::<ChartBridge>();
+    c.on_nearest_point(|points, x, max_dx| {
+        let x_at = |i: usize| points.row_data(i).map(|p| p.x).unwrap_or(f32::NAN);
+        ui_model::nearest_index(points.row_count(), x_at, x, max_dx)
+    });
+    c.on_nearest_note(|notes, x, max_dx| {
+        let x_at = |i: usize| notes.row_data(i).map(|n| n.x).unwrap_or(f32::NAN);
+        ui_model::nearest_index(notes.row_count(), x_at, x, max_dx)
+    });
+
+    let n = ui.global::<Notes>();
+    n.on_now(|| ui_model::note_time_text(chrono::Utc::now()).into());
+    let t = tx.clone();
+    n.on_save(move |id, when, text| send!(t, Cmd::SaveNote(id.to_string(), when.to_string(), text.to_string())));
+    let t = tx.clone();
+    n.on_delete(move |id| send!(t, Cmd::DeleteNote(id.to_string())));
+
+    ui.global::<About>().on_open_link(|i| {
+        if let Some(url) = about::link(i) {
+            platform::open_url(&url);
+        }
+    });
 
     let b = ui.global::<SettingsBridge>();
     let t = tx.clone();

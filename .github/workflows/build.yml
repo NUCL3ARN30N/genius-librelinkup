@@ -100,6 +100,19 @@ jobs:
     permissions:
       contents: write
     steps:
+      - uses: actions/checkout@v7
+        with:
+          sparse-checkout: CHANGELOG.md
+          sparse-checkout-cone-mode: false
+      - name: Release notes
+        # the version's section of CHANGELOG.md, without its heading
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          awk -v v="$version" '
+            /^## / { if (found) exit; found = index($0, "[" v "]") > 0; next }
+            found
+          ' CHANGELOG.md > release-notes.md
+          cat release-notes.md
       # only our build outputs: the docker job adds a build-record artifact that cannot be fetched here
       - uses: actions/download-artifact@v8
         with:
@@ -114,3 +127,4 @@ jobs:
       - uses: softprops/action-gh-release@v2
         with:
           files: assets/*
+          body_path: release-notes.md

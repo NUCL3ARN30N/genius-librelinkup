@@ -14,11 +14,11 @@ use crate::config::{
     Appearance, RangeColors, Settings, SyncSettings, TrayStyle, UnitPref, app_log_dir, config_path, default_log_dir, parse_hex,
 };
 use crate::devlog::DevLog;
-use crate::store::{Store, VaultState, vault_state};
+use crate::store::{Note, Store, VaultState, vault_state};
 use crate::units::{Units, level, trend_arrow};
 use crate::{
-    AppWindow, Dashboard, DevBridge, LogItem, Reports, SettingsBridge, SyncBridge, Theme, Toast, UiAppearance, UiSettings,
-    UpdateBridge, platform, secrets, stats, tray, trayicon, ui_model, updater,
+    AppWindow, Dashboard, DevBridge, LogItem, Notes, Reports, SettingsBridge, SyncBridge, Theme, Toast, UiAppearance,
+    UiSettings, UpdateBridge, platform, secrets, stats, tray, trayicon, ui_model, updater,
 };
 use gllu_core::sync::{self, ClientIdentity, PairingCode, PatientInfo, SyncClient, SyncCredentials, SyncError};
 use slint::ComponentHandle;
@@ -52,6 +52,9 @@ pub enum Cmd {
     OpenReleasePage,
     UpdateOptions(bool),
     OpenDay(i32),
+    /// (id – empty for a new note, time as typed, text)
+    SaveNote(String, String, String),
+    DeleteNote(String),
     /// Deletes everything stored on this computer (true: including the glucose log), then quits.
     WipeLocalData(bool),
     PairServer(String, bool),
@@ -93,6 +96,8 @@ struct Worker {
     last_backfill: Option<Instant>,
     /// Set after "delete all local data": nothing may be written any more.
     wiped: bool,
+    /// The day shown in the details dialog, refreshed when its notes change.
+    detail_day: Option<i32>,
 }
 
 pub async fn run(
@@ -135,6 +140,7 @@ pub async fn run(
         notified_update: String::new(),
         last_backfill: None,
         wiped: false,
+        detail_day: None,
     };
     w.push_settings();
     w.push_appearance(true);
@@ -147,11 +153,13 @@ pub async fn run(
     } else {
         // re-apply on every start: the entry may have been removed (uninstaller, cleanup tools)
         // or point to an old exe path after the app was moved (not for dev builds from target/)
-        if w.s.autostart
-            && !cfg!(debug_assertions)
-            && let Err(e) = platform::set_autostart(true)
-        {
-            tracing::warn!("could not register autostart: {e:#}");
+        if w.s.autostart && !cfg!(debug_assertions) {
+            if let Err(e) = platform::set_autostart(true) {
+                tracing::warn!("could not register autostart: {e:#}");
+            }
+            if platform::autostart_disabled_by_windows() {
+                tracing::warn!("autostart is switched off in Windows (Task Manager / Settings → Startup apps)");
+            }
         }
         w.init_store().await;
         w.auto_login().await;
@@ -305,8 +313,9 @@ impl Worker {
             (None, true, true) => "The log is locked.".into(),
             (None, true, false) => "The log is not loaded in this session.".into(),
             (Some(st), _, _) => format!(
-                "{} readings since {} in {} · {}",
+                "{} readings and {} notes since {} in {} · {}",
                 st.len(),
+                st.note_count(),
                 st.first_time().map(|t| t.with_timezone(&Local).format("%d %b %Y").to_string()).unwrap_or("–".into()),
                 st.dir().display(),
                 if st.is_encrypted() { "encrypted (XChaCha20-Poly1305, Argon2id)" } else { "not encrypted" }
@@ -315,7 +324,9 @@ impl Worker {
         };
         let log_path: SharedString = app_log_dir().display().to_string().into();
         let log_folder: SharedString = s.log_dir().display().to_string().into();
+        let notes_available = self.store.as_ref().is_some_and(|st| st.notes_error().is_none());
         self.ui(move |w| {
+            w.global::<Notes>().set_available(notes_available);
             let b = w.global::<SettingsBridge>();
             b.set_settings(ui);
             b.set_log_folder(log_folder);
@@ -350,6 +361,11 @@ impl Worker {
         out
     }
 
+    /// Notes in `[from, to)` (none without a loaded log).
+    fn notes_between(&self, from: DateTime<Utc>, to: DateTime<Utc>) -> Vec<Note> {
+        self.store.as_ref().map(|st| st.notes(from, to - Duration::seconds(1))).unwrap_or_default()
+    }
+
     fn push_dashboard(&self) {
         let u = self.units();
         let (lo, hi) = (self.s.target_low, self.s.target_high);
@@ -357,7 +373,8 @@ impl Worker {
         let hours = look.graph_hours.max(3) as i64;
         let readings = self.recent(hours.max(24));
         let latest = self.patient.as_ref().and_then(|p| p.current).or_else(|| readings.last().copied());
-        let graph = ui_model::graph(&readings, u, lo, hi, hours, look.graph_style);
+        let notes = self.notes_between(Utc::now() - Duration::hours(hours), Utc::now() + Duration::seconds(1));
+        let graph = ui_model::graph(&readings, &notes, u, lo, hi, hours, look.graph_style);
         let graph_title = format!("Last {hours} hours");
 
         let report = stats::build_report(&readings, Utc::now() - Duration::hours(24), Utc::now(), lo, hi, 154.0);
@@ -439,6 +456,8 @@ impl Worker {
             d.set_sensor(sensor.into());
             d.set_line_path(graph.path.into());
             d.set_dots(ModelRc::new(VecModel::from(graph.dots)));
+            d.set_points(ModelRc::new(VecModel::from(graph.points)));
+            d.set_notes(ModelRc::new(VecModel::from(graph.notes)));
             d.set_y_labels(ModelRc::new(VecModel::from(graph.y_labels)));
             d.set_x_labels(ModelRc::new(VecModel::from(graph.x_labels)));
             d.set_band_top(graph.band_top);
@@ -489,8 +508,11 @@ impl Worker {
         r
     }
 
-    fn open_day(&self, key: i32) {
+    /// Shows one day in the details dialog. With `refresh` only an already open dialog is
+    /// updated (after its notes changed).
+    fn open_day(&mut self, key: i32, refresh: bool) {
         let Some(date) = ui_model::day_from_key(key) else { return };
+        self.detail_day = Some(key);
         let midnight = |d: chrono::NaiveDate| {
             d.and_hms_opt(0, 0, 0)
                 .and_then(|t| t.and_local_timezone(Local).earliest())
@@ -506,20 +528,29 @@ impl Worker {
             .collect();
         let prev = days.range(..date).next_back().map(|d| ui_model::day_key(*d)).unwrap_or(-1);
         let next = days.range(date + Duration::days(1)..).next().map(|d| ui_model::day_key(*d)).unwrap_or(-1);
+        let notes = self.notes_between(start, end);
         let m = ui_model::day_detail(
             date,
             &readings,
+            &notes,
             (start, end),
             self.units(),
             self.s.target_low,
             self.s.target_high,
             self.s.appearance.graph_style,
         );
+        let date_text: SharedString = date.format("%Y-%m-%d").to_string().into();
         self.ui(move |w| {
             let r = w.global::<Reports>();
+            if refresh && !r.get_detail_open() {
+                return;
+            }
             r.set_detail_title(m.title.into());
+            r.set_detail_date(date_text);
             r.set_detail_line(m.graph.path.into());
             r.set_detail_dots(ModelRc::new(VecModel::from(m.graph.dots)));
+            r.set_detail_points(ModelRc::new(VecModel::from(m.graph.points)));
+            r.set_detail_notes(ModelRc::new(VecModel::from(m.graph.notes)));
             r.set_detail_y_labels(ModelRc::new(VecModel::from(m.graph.y_labels)));
             r.set_detail_x_labels(ModelRc::new(VecModel::from(m.graph.x_labels)));
             r.set_detail_band_top(m.graph.band_top);
@@ -560,7 +591,8 @@ impl Worker {
             return;
         }
         let report = stats::build_report(&readings, from, now, self.s.target_low, self.s.target_high, 154.0);
-        let m = ui_model::report_model(&report, self.units(), self.s.target_low, self.s.target_high);
+        let notes = self.notes_between(from, now + Duration::minutes(1));
+        let m = ui_model::report_model(&report, &notes, self.units(), self.s.target_low, self.s.target_high);
         self.ui(move |w| {
             let r = w.global::<Reports>();
             r.set_available(true);
@@ -577,7 +609,8 @@ impl Worker {
             r.set_band_top(m.band_top);
             r.set_band_bottom(m.band_bottom);
             r.set_insights(ModelRc::new(VecModel::from(m.insights)));
-            r.set_days(ModelRc::new(VecModel::from(m.days)));
+            let days: Vec<_> = m.days.into_iter().map(ui_model::DayCell::into_card).collect();
+            r.set_days(ModelRc::new(VecModel::from(days)));
             r.set_day_band_top(m.day_band_top);
             r.set_day_band_bottom(m.day_band_bottom);
         });
@@ -685,6 +718,8 @@ impl Worker {
                     let name = entry.file_name().to_string_lossy().to_string();
                     let ours = name == "vault.json"
                         || name == "vault.tmp"
+                        || name == "notes.gllu"
+                        || name == "notes.tmp"
                         || (name.starts_with("glucose-") && (name.ends_with(".gllu") || name.ends_with(".bllu") || name.ends_with(".tmp")));
                     if ours {
                         remove_file(&entry.path(), &mut failed);
@@ -1157,7 +1192,7 @@ impl Worker {
                     None => Err(anyhow::anyhow!("the log is not loaded")),
                 };
                 match res {
-                    Ok(n) => self.settings_message(format!("Exported {n} readings")),
+                    Ok((readings, notes)) => self.settings_message(format!("Exported {readings} readings and {notes} notes")),
                     Err(e) => self.settings_message(format!("Export failed: {e:#}")),
                 }
             }
@@ -1168,7 +1203,7 @@ impl Worker {
                 };
                 match res {
                     Ok(n) => {
-                        self.settings_message(format!("Imported {n} new readings"));
+                        self.settings_message(format!("Imported {} new readings and {} notes", n.readings, n.notes));
                         self.push_report();
                         self.push_dashboard();
                         self.push_settings();
@@ -1212,7 +1247,18 @@ impl Worker {
                     .unwrap_or_else(|| format!("https://github.com/{}/releases", updater::REPO));
                 platform::open_url(&url);
             }
-            Cmd::OpenDay(key) => self.open_day(key),
+            Cmd::OpenDay(key) => self.open_day(key, false),
+            Cmd::SaveNote(id, when, text) => {
+                let result = self.save_note(&id, &when, &text);
+                self.note_done(result, if id.is_empty() { "Note added" } else { "Note saved" });
+            }
+            Cmd::DeleteNote(id) => {
+                let result = match &mut self.store {
+                    Some(st) => st.delete_note(&id).and_then(|()| st.flush()),
+                    None => Err(anyhow::anyhow!("the glucose log is not loaded")),
+                };
+                self.note_done(result, "Note deleted");
+            }
             Cmd::WipeLocalData(include_log) => self.wipe_local_data(include_log),
             Cmd::UpdateOptions(auto) => {
                 self.s.updates.auto_check = auto;
@@ -1243,6 +1289,45 @@ impl Worker {
                 }
             }
             Cmd::Quit(_) => unreachable!(),
+        }
+    }
+
+    fn save_note(&mut self, id: &str, when: &str, text: &str) -> anyhow::Result<()> {
+        let time = ui_model::parse_note_time(when)
+            .ok_or_else(|| anyhow::anyhow!("enter the time as YYYY-MM-DD HH:MM, or HH:MM for today"))?;
+        if time > Utc::now() + Duration::days(1) {
+            anyhow::bail!("the time is more than a day in the future");
+        }
+        let st = self.store.as_mut().ok_or_else(|| anyhow::anyhow!("the glucose log is not loaded"))?;
+        if id.is_empty() {
+            st.add_note(time, text)?;
+        } else {
+            st.edit_note(id, time, text)?;
+        }
+        st.flush()
+    }
+
+    /// Closes the note dialog and redraws everything that shows notes, or shows the error in
+    /// the dialog.
+    fn note_done(&mut self, result: anyhow::Result<()>, message: &str) {
+        match result {
+            Ok(()) => {
+                self.ui(|w| w.global::<Notes>().set_open(false));
+                self.toast(message);
+                self.push_dashboard();
+                self.push_report();
+                if let Some(key) = self.detail_day {
+                    self.open_day(key, true);
+                }
+                self.push_settings();
+            }
+            Err(e) => {
+                let mut text = format!("{e:#}");
+                if let Some(first) = text.get(..1) {
+                    text = first.to_uppercase() + &text[1..];
+                }
+                self.ui(move |w| w.global::<Notes>().set_error(text.into()));
+            }
         }
     }
 
@@ -1295,6 +1380,8 @@ impl Worker {
         if s.autostart != old.autostart && !self.demo {
             if let Err(e) = platform::set_autostart(s.autostart) {
                 self.settings_message(format!("Autostart: {e:#}"));
+            } else if s.autostart {
+                platform::clear_autostart_disabled();
             }
         }
         if !s.remember_passphrase && old.remember_passphrase {
@@ -1428,6 +1515,7 @@ fn appearance_from_ui(ui: &UiAppearance, old: &Appearance) -> Appearance {
             arrow: ui.tray_arrow,
             text_color: ui.tray_text.clamp(0, 2) as u8,
             font: ui.tray_font.clamp(0, 2) as u8,
+            arrow_separate: ui.tray_arrow_separate,
         },
     }
 }
@@ -1452,6 +1540,7 @@ impl Worker {
             show_stats: a.show_stats,
             tray_shape: a.tray.shape as i32,
             tray_arrow: a.tray.arrow,
+            tray_arrow_separate: a.tray.arrow_separate,
             tray_text: a.tray.text_color as i32,
             tray_font: a.tray.font as i32,
         };
@@ -1478,13 +1567,22 @@ impl Worker {
 
             // rendered on the UI thread, which owns the font database used by the tray
             let b = w.global::<SettingsBridge>();
-            let image = |size: u32| {
-                let rgba = trayicon::render(&text, trend, color, &a.tray, size);
+            let to_image = |rgba: Vec<u8>, size: u32| {
                 slint::Image::from_rgba8(slint::SharedPixelBuffer::clone_from_slice(&rgba, size, size))
             };
+            let image = |size: u32| to_image(trayicon::render(&text, trend, color, &a.tray, size), size);
+            let arrow_image = |size: u32| {
+                if a.tray.arrow && a.tray.arrow_separate {
+                    to_image(trayicon::render_arrow(trend, color, &a.tray, size), size)
+                } else {
+                    slint::Image::default()
+                }
+            };
             b.set_tray_preview(image(64));
+            b.set_tray_arrow_preview(arrow_image(64));
             let actual = trayicon::tray_size();
             b.set_tray_preview_actual(image(actual));
+            b.set_tray_arrow_preview_actual(arrow_image(actual));
             b.set_tray_actual_size(actual as i32);
             if full {
                 b.set_appearance(ui_a);

@@ -2,7 +2,8 @@
 //! folder can live in Nextcloud/Dropbox/OneDrive. Files are optionally encrypted with
 //! XChaCha20-Poly1305 using a key derived from a passphrase with Argon2id (`vault.json` keeps
 //! the salt and a check value). Before a month is written the file on disk is merged in, so two
-//! machines syncing the same folder do not lose each other's readings.
+//! machines syncing the same folder do not lose each other's readings. Notes live next to the
+//! months in `notes.gllu` (same container, JSON payload) and are merged the same way.
 
 use std::collections::BTreeMap;
 use std::io::Write;
@@ -28,6 +29,9 @@ pub const MMOL_FACTOR: f32 = 18.0182;
 const EXT: &str = ".gllu";
 /// Month files written before the rename to Genius LibreLinkUp.
 const LEGACY_EXT: &str = ".bllu";
+const NOTES_FILE: &str = "notes.gllu";
+/// Longest note text that is kept (characters).
+pub const NOTE_MAX_CHARS: usize = 500;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum VaultState {
@@ -62,6 +66,62 @@ pub struct Store {
     dir: PathBuf,
     key: Option<Key>,
     months: BTreeMap<MonthId, Month>,
+    /// id → note, including deleted ones (tombstones)
+    notes: BTreeMap<String, Note>,
+    notes_dirty: bool,
+    /// Why `notes.gllu` could not be read; notes are then read-only so the file is not replaced.
+    notes_error: Option<String>,
+}
+
+/// A free-text note at a point in time (meal, insulin, exercise, …).
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct Note {
+    pub id: String,
+    /// unix seconds the note refers to
+    pub time: i64,
+    pub text: String,
+    /// unix milliseconds of the last change; the newest version wins when merging
+    pub updated: i64,
+    /// kept as a tombstone so a copy on another device does not bring the note back
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub deleted: bool,
+}
+
+impl Note {
+    pub fn at(&self) -> DateTime<Utc> {
+        DateTime::from_timestamp(self.time, 0).unwrap_or_default()
+    }
+}
+
+/// Single line, trimmed and limited to [`NOTE_MAX_CHARS`].
+pub fn clean_note_text(text: &str) -> String {
+    text.split_whitespace().collect::<Vec<_>>().join(" ").chars().take(NOTE_MAX_CHARS).collect()
+}
+
+/// Adds `other` to `into`; per id the newer version wins, a deletion wins a tie.
+fn merge_notes(into: &mut BTreeMap<String, Note>, other: BTreeMap<String, Note>) {
+    for (id, n) in other {
+        match into.get(&id) {
+            Some(cur) if (cur.updated, cur.deleted) >= (n.updated, n.deleted) => {}
+            _ => {
+                into.insert(id, n);
+            }
+        }
+    }
+}
+
+/// What a CSV file contained.
+#[derive(Debug, Default)]
+pub struct CsvData {
+    pub readings: Vec<Reading>,
+    pub notes: Vec<(DateTime<Utc>, String)>,
+}
+
+/// Result of [`Store::import_csv`].
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
+pub struct Imported {
+    pub readings: usize,
+    pub notes: usize,
 }
 
 #[derive(Default)]
@@ -141,9 +201,17 @@ impl Store {
             }
             Err(_) => Self::write_meta(dir, passphrase.filter(|p| !p.is_empty()))?,
         };
-        let mut store = Store { dir: dir.to_path_buf(), key, months: BTreeMap::new() };
+        let mut store = Store {
+            dir: dir.to_path_buf(),
+            key,
+            months: BTreeMap::new(),
+            notes: BTreeMap::new(),
+            notes_dirty: false,
+            notes_error: None,
+        };
         store.migrate_legacy_files()?;
         store.load_all()?;
+        store.load_notes();
         Ok(store)
     }
 
@@ -327,14 +395,24 @@ impl Store {
             self.write_month_file(id, &readings)?;
             self.months.get_mut(&id).unwrap().dirty = false;
         }
+        if self.notes_dirty && self.notes_error.is_none() {
+            match self.read_notes_file() {
+                Ok(on_disk) => merge_notes(&mut self.notes, on_disk),
+                Err(e) => tracing::warn!("could not merge existing notes file: {e:#}"),
+            }
+            self.write_notes_file()?;
+            self.notes_dirty = false;
+        }
         Ok(())
     }
 
-    /// Re-reads month files from disk (picks up data synced from other machines).
+    /// Re-reads month files and notes from disk (picks up data synced from other machines).
     pub fn reload(&mut self) -> Result<()> {
         self.flush()?;
         self.months.clear();
-        self.load_all()
+        self.load_all()?;
+        self.load_notes();
+        Ok(())
     }
 
     pub fn range(&self, from: DateTime<Utc>, to: DateTime<Utc>) -> Vec<Reading> {
@@ -380,36 +458,206 @@ impl Store {
             let readings = self.months[&id].readings.clone();
             self.write_month_file(id, &readings)?;
         }
+        if self.notes_error.is_none() && !self.notes.is_empty() {
+            self.write_notes_file()?;
+        }
         Ok(())
     }
 
-    pub fn export_csv(&self, path: &Path) -> Result<usize> {
-        let mut f = std::io::BufWriter::new(std::fs::File::create(path)?);
-        writeln!(f, "timestamp_utc,local_time,glucose_mg_dl,glucose_mmol_l,trend")?;
-        let all = self.all();
-        for r in &all {
-            writeln!(
-                f,
-                "{},{},{:.0},{:.1},{}",
-                r.time.format("%Y-%m-%dT%H:%M:%SZ"),
-                r.time.with_timezone(&Local).format("%Y-%m-%d %H:%M:%S"),
-                r.mg_dl,
-                r.mg_dl / MMOL_FACTOR,
-                r.trend
-            )?;
-        }
-        f.flush()?;
-        Ok(all.len())
+    // ------------------------------------------------------------------ notes
+
+    fn notes_path(&self) -> PathBuf {
+        self.dir.join(NOTES_FILE)
     }
 
-    /// Imports our own CSV export or a LibreView "Glucose Data" export. Returns new readings.
-    pub fn import_csv(&mut self, path: &Path) -> Result<usize> {
-        let text = std::fs::read_to_string(path)?;
-        let readings = parse_csv(&text)?;
-        let n = self.insert(&readings);
-        self.flush()?;
-        Ok(n)
+    fn read_notes_file(&self) -> Result<BTreeMap<String, Note>> {
+        let path = self.notes_path();
+        let data = match std::fs::read(&path) {
+            Ok(d) => d,
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(BTreeMap::new()),
+            Err(e) => return Err(e.into()),
+        };
+        if data.len() < 6 || &data[..4] != MAGIC || data[4] != FORMAT_VERSION {
+            bail!("{} is not a notes file", path.display());
+        }
+        let payload = match data[5] {
+            CIPHER_NONE => data[6..].to_vec(),
+            CIPHER_XCHACHA => {
+                let key = self.key.as_ref().ok_or_else(|| anyhow!("{} is encrypted", path.display()))?;
+                open_sealed(key, &data[6..], NOTES_AAD).with_context(|| path.display().to_string())?
+            }
+            c => bail!("unknown cipher {c} in {}", path.display()),
+        };
+        let notes: Vec<Note> = serde_json::from_slice(&payload).with_context(|| format!("parsing {}", path.display()))?;
+        Ok(notes.into_iter().map(|n| (n.id.clone(), n)).collect())
     }
+
+    fn write_notes_file(&self) -> Result<()> {
+        let payload = serde_json::to_vec(&self.notes.values().collect::<Vec<_>>())?;
+        let mut out = Vec::with_capacity(payload.len() + 64);
+        out.extend_from_slice(MAGIC);
+        out.push(FORMAT_VERSION);
+        match &self.key {
+            Some(key) => {
+                out.push(CIPHER_XCHACHA);
+                out.extend_from_slice(&seal(key, &payload, NOTES_AAD)?);
+            }
+            None => {
+                out.push(CIPHER_NONE);
+                out.extend_from_slice(&payload);
+            }
+        }
+        atomic_write(&self.notes_path(), &out)
+    }
+
+    /// (Re)loads `notes.gllu`. A file that cannot be read (e.g. re-encrypted by an older app
+    /// version) does not stop the log from opening; notes just stay read-only.
+    fn load_notes(&mut self) {
+        match self.read_notes_file() {
+            Ok(notes) => {
+                merge_notes(&mut self.notes, notes);
+                self.notes_error = None;
+            }
+            Err(e) => {
+                tracing::warn!("could not read notes: {e:#}");
+                self.notes_error = Some(format!("{e:#}"));
+            }
+        }
+    }
+
+    fn notes_writable(&self) -> Result<()> {
+        match &self.notes_error {
+            Some(e) => bail!("the notes file could not be read ({e})"),
+            None => Ok(()),
+        }
+    }
+
+    /// Notes in `[from, to]`, oldest first, without deleted ones.
+    pub fn notes(&self, from: DateTime<Utc>, to: DateTime<Utc>) -> Vec<Note> {
+        let (f, t) = (from.timestamp(), to.timestamp());
+        let mut out: Vec<Note> =
+            self.notes.values().filter(|n| !n.deleted && (f..=t).contains(&n.time)).cloned().collect();
+        out.sort_by(|a, b| (a.time, &a.id).cmp(&(b.time, &b.id)));
+        out
+    }
+
+    pub fn all_notes(&self) -> Vec<Note> {
+        let mut out: Vec<Note> = self.notes.values().filter(|n| !n.deleted).cloned().collect();
+        out.sort_by(|a, b| (a.time, &a.id).cmp(&(b.time, &b.id)));
+        out
+    }
+
+    pub fn note(&self, id: &str) -> Option<&Note> {
+        self.notes.get(id).filter(|n| !n.deleted)
+    }
+
+    /// Set when `notes.gllu` could not be read; notes are read-only then.
+    pub fn notes_error(&self) -> Option<&str> {
+        self.notes_error.as_deref()
+    }
+
+    pub fn note_count(&self) -> usize {
+        self.notes.values().filter(|n| !n.deleted).count()
+    }
+
+    /// Adds a note and returns its id. Call [`Store::flush`] to write it.
+    pub fn add_note(&mut self, time: DateTime<Utc>, text: &str) -> Result<String> {
+        self.notes_writable()?;
+        let text = clean_note_text(text);
+        if text.is_empty() {
+            bail!("the note is empty");
+        }
+        let id = hex::encode(random_bytes::<8>());
+        let note = Note { id: id.clone(), time: time.timestamp(), text, updated: now_millis(), deleted: false };
+        self.notes.insert(id.clone(), note);
+        self.notes_dirty = true;
+        Ok(id)
+    }
+
+    /// Changes the time and text of an existing note.
+    pub fn edit_note(&mut self, id: &str, time: DateTime<Utc>, text: &str) -> Result<()> {
+        self.notes_writable()?;
+        let text = clean_note_text(text);
+        if text.is_empty() {
+            bail!("the note is empty");
+        }
+        let note = self.notes.get_mut(id).filter(|n| !n.deleted).ok_or_else(|| anyhow!("note not found"))?;
+        note.time = time.timestamp();
+        note.text = text;
+        note.updated = now_millis().max(note.updated + 1);
+        self.notes_dirty = true;
+        Ok(())
+    }
+
+    pub fn delete_note(&mut self, id: &str) -> Result<()> {
+        self.notes_writable()?;
+        let note = self.notes.get_mut(id).filter(|n| !n.deleted).ok_or_else(|| anyhow!("note not found"))?;
+        note.deleted = true;
+        note.text.clear();
+        note.updated = now_millis().max(note.updated + 1);
+        self.notes_dirty = true;
+        Ok(())
+    }
+
+    /// Writes all readings and notes, ordered by time. Note rows leave the glucose columns empty.
+    /// Returns (readings, notes).
+    pub fn export_csv(&self, path: &Path) -> Result<(usize, usize)> {
+        let mut f = std::io::BufWriter::new(std::fs::File::create(path)?);
+        let (readings, notes) = (self.all(), self.all_notes());
+        write_csv(&mut f, &readings, &notes)?;
+        f.flush()?;
+        Ok((readings.len(), notes.len()))
+    }
+
+    /// Imports our own CSV export or a LibreView "Glucose Data" export (including its notes).
+    /// Returns what was new.
+    pub fn import_csv(&mut self, path: &Path) -> Result<Imported> {
+        let text = std::fs::read_to_string(path)?;
+        let data = parse_csv(&text)?;
+        let readings = self.insert(&data.readings);
+        let mut notes = 0;
+        for (time, text) in &data.notes {
+            let clean = clean_note_text(text);
+            let exists = self.notes.values().any(|n| !n.deleted && n.time == time.timestamp() && n.text == clean);
+            if !clean.is_empty() && !exists && self.add_note(*time, &clean).is_ok() {
+                notes += 1;
+            }
+        }
+        self.flush()?;
+        Ok(Imported { readings, notes })
+    }
+}
+
+const NOTES_AAD: &[u8] = b"gllu:notes";
+
+fn now_millis() -> i64 {
+    Utc::now().timestamp_millis()
+}
+
+/// Quotes a CSV field when needed.
+fn csv_field(s: &str) -> String {
+    if s.contains([',', ';', '"', '\n', '\r']) { format!("\"{}\"", s.replace('"', "\"\"")) } else { s.to_string() }
+}
+
+fn write_csv(f: &mut impl Write, readings: &[Reading], notes: &[Note]) -> Result<()> {
+    writeln!(f, "timestamp_utc,local_time,glucose_mg_dl,glucose_mmol_l,trend,note")?;
+    let stamp = |t: DateTime<Utc>| {
+        (t.format("%Y-%m-%dT%H:%M:%SZ").to_string(), t.with_timezone(&Local).format("%Y-%m-%d %H:%M:%S").to_string())
+    };
+    let mut notes = notes.iter().peekable();
+    for r in readings {
+        while let Some(n) = notes.next_if(|n| n.time < r.time.timestamp()) {
+            let (utc, local) = stamp(n.at());
+            writeln!(f, "{utc},{local},,,,{}", csv_field(&n.text))?;
+        }
+        let (utc, local) = stamp(r.time);
+        writeln!(f, "{utc},{local},{:.0},{:.1},{},", r.mg_dl, r.mg_dl / MMOL_FACTOR, r.trend)?;
+    }
+    for n in notes {
+        let (utc, local) = stamp(n.at());
+        writeln!(f, "{utc},{local},,,,{}", csv_field(&n.text))?;
+    }
+    Ok(())
 }
 
 fn atomic_write(path: &Path, data: &[u8]) -> Result<()> {
@@ -438,8 +686,14 @@ fn split_csv_line(line: &str) -> Vec<String> {
     let mut out = Vec::new();
     let mut cur = String::new();
     let mut quoted = false;
-    for c in line.chars() {
+    let mut chars = line.chars().peekable();
+    while let Some(c) = chars.next() {
         match c {
+            // "" inside a quoted field is a literal quote
+            '"' if quoted && chars.peek() == Some(&'"') => {
+                cur.push('"');
+                chars.next();
+            }
             '"' => quoted = !quoted,
             ',' | ';' if !quoted => out.push(std::mem::take(&mut cur)),
             _ => cur.push(c),
@@ -466,11 +720,11 @@ fn parse_local_time(s: &str) -> Option<DateTime<Utc>> {
     })
 }
 
-pub fn parse_csv(text: &str) -> Result<Vec<Reading>> {
+pub fn parse_csv(text: &str) -> Result<CsvData> {
     let mut lines = text.lines();
-    let mut out = Vec::new();
-    // Our own export.
-    let first = lines.next().unwrap_or_default();
+    let mut out = CsvData::default();
+    // Our own export (the note column was added in 0.2.0).
+    let first = lines.next().unwrap_or_default().trim_start_matches('\u{feff}');
     if first.starts_with("timestamp_utc") {
         for line in lines {
             let cols = split_csv_line(line);
@@ -478,9 +732,13 @@ pub fn parse_csv(text: &str) -> Result<Vec<Reading>> {
                 continue;
             }
             let Ok(time) = DateTime::parse_from_rfc3339(&cols[0]) else { continue };
+            let time = time.with_timezone(&Utc);
+            if let Some(note) = cols.get(5).filter(|n| !n.is_empty()) {
+                out.notes.push((time, note.clone()));
+            }
             let Ok(v) = cols[2].parse::<f32>() else { continue };
             let trend = cols.get(4).and_then(|t| t.parse().ok()).unwrap_or(0);
-            out.push(Reading { time: time.with_timezone(&Utc), mg_dl: v, trend });
+            out.readings.push(Reading { time, mg_dl: v, trend });
         }
         return Ok(out);
     }
@@ -500,8 +758,12 @@ pub fn parse_csv(text: &str) -> Result<Vec<Reading>> {
             bail!("unsupported CSV header");
         };
         let scan_i = find("scan glucose");
+        let notes_i = h.iter().position(|c| c.trim().eq_ignore_ascii_case("notes"));
         let mmol = h[hist_i].to_lowercase().contains("mmol");
         let Some(time) = cols.get(ts_i).and_then(|s| parse_local_time(s)) else { continue };
+        if let Some(note) = notes_i.and_then(|i| cols.get(i)).filter(|n| !n.is_empty()) {
+            out.notes.push((time, note.clone()));
+        }
         let value = [Some(hist_i), scan_i]
             .into_iter()
             .flatten()
@@ -509,7 +771,7 @@ pub fn parse_csv(text: &str) -> Result<Vec<Reading>> {
             .find_map(|v| v.replace(',', ".").parse::<f32>().ok());
         if let Some(v) = value {
             let mg = if mmol { v * MMOL_FACTOR } else { v };
-            out.push(Reading { time, mg_dl: mg, trend: 0 });
+            out.readings.push(Reading { time, mg_dl: mg, trend: 0 });
         }
     }
     if header.is_none() {
@@ -623,8 +885,87 @@ mod tests {
             Device,Serial Number,Device Timestamp,Record Type,Historic Glucose mmol/L,Scan Glucose mmol/L\n\
             FreeStyle LibreLink,ABC,27-10-2026 08:15,0,5.5,\n\
             FreeStyle LibreLink,ABC,27-10-2026 08:20,1,,6.1\n";
-        let r = parse_csv(csv).unwrap();
+        let r = parse_csv(csv).unwrap().readings;
         assert_eq!(r.len(), 2);
         assert!((r[0].mg_dl - 99.1).abs() < 0.2);
+    }
+
+    #[test]
+    fn parses_libreview_notes() {
+        let csv = "Glucose Data,Generated on,10-28-2026 10:00 AM UTC,Generated by,x\n\
+            Device,Serial Number,Device Timestamp,Record Type,Historic Glucose mg/dL,Scan Glucose mg/dL,Notes\n\
+            FreeStyle LibreLink,ABC,27-10-2026 08:15,0,110,,\n\
+            FreeStyle LibreLink,ABC,27-10-2026 08:30,6,,,\"Breakfast, 2 slices\"\n";
+        let d = parse_csv(csv).unwrap();
+        assert_eq!(d.readings.len(), 1);
+        assert_eq!(d.notes.len(), 1);
+        assert_eq!(d.notes[0].1, "Breakfast, 2 slices");
+    }
+
+    #[test]
+    fn notes_roundtrip_merge_and_delete() {
+        let dir = tmpdir("notes");
+        let t = DateTime::from_timestamp(1_767_225_600, 0).unwrap();
+        let (id_a, id_b);
+        {
+            let mut a = Store::open(&dir, Some("pw")).unwrap();
+            let mut b = Store::open(&dir, Some("pw")).unwrap();
+            id_a = a.add_note(t, "  Pizza \n large ").unwrap();
+            a.flush().unwrap();
+            // b never saw a's note but must not drop it when writing its own
+            id_b = b.add_note(t + chrono::Duration::minutes(5), "Walk").unwrap();
+            b.flush().unwrap();
+        }
+        let mut s = Store::open(&dir, Some("pw")).unwrap();
+        assert_eq!(s.note_count(), 2);
+        assert_eq!(s.note(&id_a).unwrap().text, "Pizza large");
+        assert!(s.add_note(t, "   ").is_err());
+
+        // a device holding an old copy must not bring a deleted note back
+        let mut stale = Store::open(&dir, Some("pw")).unwrap();
+        s.delete_note(&id_a).unwrap();
+        s.edit_note(&id_b, t, "Long walk").unwrap();
+        s.flush().unwrap();
+        stale.add_note(t, "Other").unwrap();
+        stale.flush().unwrap();
+        let s = Store::open(&dir, Some("pw")).unwrap();
+        assert!(s.note(&id_a).is_none());
+        assert_eq!(s.note(&id_b).unwrap().text, "Long walk");
+        assert_eq!(s.note_count(), 2);
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn unreadable_notes_stay_read_only() {
+        let dir = tmpdir("notes-bad");
+        let mut s = Store::open(&dir, None).unwrap();
+        std::fs::write(dir.join(NOTES_FILE), b"garbage").unwrap();
+        s.reload().unwrap();
+        assert!(s.add_note(Utc::now(), "x").is_err());
+        assert_eq!(std::fs::read(dir.join(NOTES_FILE)).unwrap(), b"garbage");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn csv_roundtrip_with_notes() {
+        let dir = tmpdir("csv");
+        let mut s = Store::open(&dir, None).unwrap();
+        s.insert(&[reading(1_767_225_600, 100.0), reading(1_767_225_900, 120.0)]);
+        s.add_note(DateTime::from_timestamp(1_767_225_700, 0).unwrap(), "Juice, \"small\"").unwrap();
+        s.add_note(DateTime::from_timestamp(1_767_226_000, 0).unwrap(), "Bed").unwrap();
+        s.flush().unwrap();
+        let file = dir.join("export.csv");
+        assert_eq!(s.export_csv(&file).unwrap(), (2, 2));
+        let text = std::fs::read_to_string(&file).unwrap();
+        let data = parse_csv(&text).unwrap();
+        assert_eq!(data.readings.len(), 2);
+        assert_eq!(data.notes.iter().map(|n| n.1.as_str()).collect::<Vec<_>>(), ["Juice, \"small\"", "Bed"]);
+
+        let other = tmpdir("csv-import");
+        let mut t = Store::open(&other, None).unwrap();
+        assert_eq!(t.import_csv(&file).unwrap(), Imported { readings: 2, notes: 2 });
+        assert_eq!(t.import_csv(&file).unwrap(), Imported::default());
+        let _ = std::fs::remove_dir_all(&dir);
+        let _ = std::fs::remove_dir_all(&other);
     }
 }
