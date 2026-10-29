@@ -1,8 +1,8 @@
-//! `bllu-server` – always-on caching server for Better LibreLinkUp.
+//! `gllu-server` – always-on caching server for Genius LibreLinkUp.
 //!
 //! Polls LibreLinkUp around the clock, keeps every reading in the same (optionally encrypted)
 //! monthly store the desktop app uses and serves the history to paired desktop apps. See
-//! `bllu_core::sync` for the security model; this binary adds the server-side defences:
+//! `gllu_core::sync` for the security model; this binary adds the server-side defences:
 //! TLS 1.3 + mandatory client certificates, tokens bound to those certificates, per-IP rate
 //! limiting with temporary bans, an optional IP allowlist, request size/time/concurrency limits,
 //! private file permissions and an audit log.
@@ -25,10 +25,10 @@ use axum::routing::{get, post};
 use axum::{Extension, Json, Router};
 use axum_server::accept::Accept;
 use axum_server::tls_rustls::{RustlsAcceptor, RustlsConfig};
-use bllu_core::api::{self, ApiError, Client, Identity};
-use bllu_core::devlog::DevLog;
-use bllu_core::store::Store;
-use bllu_core::sync::{
+use gllu_core::api::{self, ApiError, Client, Identity};
+use gllu_core::devlog::DevLog;
+use gllu_core::store::Store;
+use gllu_core::sync::{
     self, API_VERSION, Health, PairRequest, PairResponse, PairingCode, PatientInfo, ReadingsResponse, RotateResponse,
 };
 use chrono::Utc;
@@ -70,20 +70,27 @@ struct Config {
     passphrase: Option<String>,
     /// Only these networks may connect at all (empty = everyone who can reach the port).
     allow: Vec<IpNet>,
-    /// `BLLU_DEMO=1`: serve synthetic data instead of polling LibreLinkUp (for trying it out).
+    /// `GLLU_DEMO=1`: serve synthetic data instead of polling LibreLinkUp (for trying it out).
     demo: bool,
 }
 
 /// Reads `NAME`, or the file named by `NAME_FILE` (Docker secrets).
+/// `GLLU_*` variables fall back to the `BLLU_*` names used before the rename, so existing
+/// env files and compose setups keep working.
+fn env_var(name: &str) -> Option<String> {
+    let get = |n: &str| std::env::var(n).ok().filter(|s| !s.is_empty());
+    get(name).or_else(|| name.strip_prefix("GLLU_").and_then(|rest| get(&format!("BLLU_{rest}"))))
+}
+
 fn env_secret(name: &str) -> Option<String> {
-    if let Ok(path) = std::env::var(format!("{name}_FILE")) {
+    if let Some(path) = env_var(&format!("{name}_FILE")) {
         return std::fs::read_to_string(path).ok().map(|s| s.trim().to_string()).filter(|s| !s.is_empty());
     }
-    std::env::var(name).ok().filter(|s| !s.is_empty())
+    env_var(name)
 }
 
 fn env_or(name: &str, default: &str) -> String {
-    std::env::var(name).ok().filter(|s| !s.is_empty()).unwrap_or_else(|| default.to_string())
+    env_var(name).unwrap_or_else(|| default.to_string())
 }
 
 fn parse_allow(s: &str) -> Result<Vec<IpNet>> {
@@ -93,18 +100,18 @@ fn parse_allow(s: &str) -> Result<Vec<IpNet>> {
         .map(|p| {
             p.parse::<IpNet>()
                 .or_else(|_| p.parse::<IpAddr>().map(IpNet::from))
-                .with_context(|| format!("BLLU_ALLOW_CIDRS: invalid network \"{p}\""))
+                .with_context(|| format!("GLLU_ALLOW_CIDRS: invalid network \"{p}\""))
         })
         .collect()
 }
 
 impl Config {
     fn from_env() -> Result<Self> {
-        let listen: SocketAddr = env_or("BLLU_LISTEN", "0.0.0.0:8443").parse().context("BLLU_LISTEN")?;
+        let listen: SocketAddr = env_or("GLLU_LISTEN", "0.0.0.0:8443").parse().context("GLLU_LISTEN")?;
         let host = std::env::var("HOSTNAME")
             .or_else(|_| std::env::var("COMPUTERNAME"))
             .unwrap_or_else(|_| "localhost".into());
-        let mut sans: Vec<String> = env_or("BLLU_TLS_SANS", "")
+        let mut sans: Vec<String> = env_or("GLLU_TLS_SANS", "")
             .split(',')
             .map(|s| s.trim().to_string())
             .filter(|s| !s.is_empty())
@@ -120,21 +127,21 @@ impl Config {
             identity.product = p;
         }
         Ok(Self {
-            data_dir: PathBuf::from(env_or("BLLU_DATA_DIR", "./data")),
+            data_dir: PathBuf::from(env_or("GLLU_DATA_DIR", "./data")),
             listen,
-            public_url: std::env::var("BLLU_PUBLIC_URL").ok().filter(|s| !s.is_empty()),
-            name: env_or("BLLU_NAME", &format!("bllu-server on {host}")),
+            public_url: env_var("GLLU_PUBLIC_URL"),
+            name: env_or("GLLU_NAME", &format!("gllu-server on {host}")),
             tls_sans: sans,
-            tls_cert: std::env::var("BLLU_TLS_CERT").ok().map(PathBuf::from),
-            tls_key: std::env::var("BLLU_TLS_KEY").ok().map(PathBuf::from),
+            tls_cert: env_var("GLLU_TLS_CERT").map(PathBuf::from),
+            tls_key: env_var("GLLU_TLS_KEY").map(PathBuf::from),
             llu_email: env_secret("LLU_EMAIL"),
             llu_password: env_secret("LLU_PASSWORD"),
             llu_server: std::env::var("LLU_SERVER").ok().filter(|s| !s.is_empty()),
             identity,
-            poll_seconds: env_or("BLLU_POLL_SECONDS", "60").parse::<u64>().unwrap_or(60).clamp(30, 900),
-            passphrase: env_secret("BLLU_DATA_PASSPHRASE"),
-            allow: parse_allow(&env_or("BLLU_ALLOW_CIDRS", ""))?,
-            demo: std::env::var("BLLU_DEMO").is_ok_and(|v| v == "1" || v == "true"),
+            poll_seconds: env_or("GLLU_POLL_SECONDS", "60").parse::<u64>().unwrap_or(60).clamp(30, 900),
+            passphrase: env_secret("GLLU_DATA_PASSPHRASE"),
+            allow: parse_allow(&env_or("GLLU_ALLOW_CIDRS", ""))?,
+            demo: env_var("GLLU_DEMO").is_some_and(|v| v == "1" || v == "true"),
         })
     }
 
@@ -168,7 +175,7 @@ fn make_private(path: &Path, dir: bool) {
     let _ = (path, dir);
 }
 
-/// `bllu-server pair` is often run as root next to a service running as `bllu`: hand files
+/// `gllu-server pair` is often run as root next to a service running as `gllu`: hand files
 /// over to the owner of their directory so the service can still rewrite them.
 fn match_dir_owner(path: &Path) {
     #[cfg(unix)]
@@ -500,7 +507,7 @@ impl AppState {
         Ok(f(stores.get_mut(patient_id).unwrap()))
     }
 
-    /// Clients are re-read when `clients.json` changes, so `bllu-server revoke` takes effect
+    /// Clients are re-read when `clients.json` changes, so `gllu-server revoke` takes effect
     /// immediately in the running server.
     fn with_clients<R>(&self, f: impl FnOnce(&mut ClientsFile) -> (R, bool)) -> Result<R> {
         let path = clients_path(&self.cfg.data_dir);
@@ -572,7 +579,7 @@ async fn guard(
 ) -> Response {
     let ip = addr.ip();
     if !state.cfg.allowed(ip) {
-        audit(&state.cfg.data_dir, "denied_network", Some(ip), "not in BLLU_ALLOW_CIDRS");
+        audit(&state.cfg.data_dir, "denied_network", Some(ip), "not in GLLU_ALLOW_CIDRS");
         return ApiErr(StatusCode::FORBIDDEN, "forbidden").into_response();
     }
     if state.limiter.banned(ip) {
@@ -783,7 +790,7 @@ async fn poller(state: Arc<AppState>) {
         return;
     };
     let devlog = DevLog::default();
-    devlog.set_enabled(std::env::var("BLLU_DEBUG_API").is_ok());
+    devlog.set_enabled(env_var("GLLU_DEBUG_API").is_some());
     let resolved_path = cfg.data_dir.join("llu-server.txt");
     let cached = std::fs::read_to_string(&resolved_path).ok().map(|s| s.trim().to_string());
     let mut client = Client::new(cfg.llu_server.clone().or(cached), cfg.identity.clone(), devlog);
@@ -866,7 +873,7 @@ async fn poller(state: Arc<AppState>) {
 }
 
 async fn demo_poller(state: Arc<AppState>) {
-    use bllu_core::demo;
+    use gllu_core::demo;
     let pid = "demo-patient".to_string();
     let now = Utc::now();
     let seeded = state.with_store(&pid, |s| {
@@ -922,7 +929,7 @@ fn create_pairing_code(cfg: &Config, tls: &Tls, ttl_minutes: i64, url: Option<St
     write_json(&path, &file)?;
     audit(&cfg.data_dir, "pairing_code_created", None, &format!("valid {ttl_minutes} min"));
     // a certificate from a public CA does not need pinning
-    let pinned = if cfg.tls_cert.is_some() && std::env::var("BLLU_PIN_CUSTOM_CERT").is_err() {
+    let pinned = if cfg.tls_cert.is_some() && env_var("GLLU_PIN_CUSTOM_CERT").is_none() {
         String::new()
     } else {
         tls.fingerprint.clone()
@@ -936,7 +943,7 @@ fn print_pairing(cfg: &Config, tls: &Tls, code: &str, ttl: i64) {
     println!();
     println!("  {code}");
     println!();
-    println!("  Paste it in Better LibreLinkUp → Settings → Caching server.");
+    println!("  Paste it in Genius LibreLinkUp → Settings → Caching server.");
     println!("  Treat it like a password: whoever uses it first is paired.");
     println!("  Certificate fingerprint: {}", sync::short_fingerprint(&tls.fingerprint));
     println!();
@@ -958,7 +965,7 @@ fn prepare_data_dir(cfg: &Config) -> Result<()> {
 async fn main() -> Result<()> {
     tracing_subscriber::fmt()
         .with_env_filter(
-            tracing_subscriber::EnvFilter::try_from_default_env().unwrap_or_else(|_| "info,bllu_server=info".into()),
+            tracing_subscriber::EnvFilter::try_from_default_env().unwrap_or_else(|_| "info,gllu_server=info".into()),
         )
         .init();
     let args: Vec<String> = std::env::args().skip(1).collect();
@@ -1000,7 +1007,7 @@ async fn main() -> Result<()> {
             Ok(())
         }
         "revoke" => {
-            let id = args.get(1).ok_or_else(|| anyhow!("usage: bllu-server revoke <client-id> | --all"))?;
+            let id = args.get(1).ok_or_else(|| anyhow!("usage: gllu-server revoke <client-id> | --all"))?;
             let path = clients_path(&cfg.data_dir);
             let mut file: ClientsFile = read_json(&path)?;
             let before = file.clients.len();
@@ -1029,16 +1036,16 @@ async fn main() -> Result<()> {
             Ok(())
         }
         "--version" | "version" => {
-            println!("bllu-server {VERSION}");
+            println!("gllu-server {VERSION}");
             Ok(())
         }
         _ => {
             println!(
-                "bllu-server {VERSION}\n\nUSAGE: bllu-server [serve | pair [--ttl MIN] [--url URL] | clients | revoke ID|--all |\n\
+                "gllu-server {VERSION}\n\nUSAGE: gllu-server [serve | pair [--ttl MIN] [--url URL] | clients | revoke ID|--all |\n\
                  \u{20}                  close-pairing | fingerprint]\n\n\
-                 Environment: LLU_EMAIL, LLU_PASSWORD[_FILE], LLU_SERVER, BLLU_DATA_DIR, BLLU_LISTEN,\n\
-                 BLLU_PUBLIC_URL, BLLU_TLS_SANS, BLLU_TLS_CERT/BLLU_TLS_KEY, BLLU_DATA_PASSPHRASE[_FILE],\n\
-                 BLLU_ALLOW_CIDRS, BLLU_POLL_SECONDS, BLLU_NAME"
+                 Environment: LLU_EMAIL, LLU_PASSWORD[_FILE], LLU_SERVER, GLLU_DATA_DIR, GLLU_LISTEN,\n\
+                 GLLU_PUBLIC_URL, GLLU_TLS_SANS, GLLU_TLS_CERT/GLLU_TLS_KEY, GLLU_DATA_PASSPHRASE[_FILE],\n\
+                 GLLU_ALLOW_CIDRS, GLLU_POLL_SECONDS, GLLU_NAME"
             );
             Ok(())
         }
@@ -1068,13 +1075,13 @@ async fn serve_with(cfg: Config, handle: axum_server::Handle<SocketAddr>) -> Res
         print_pairing(&cfg, &tls, &code, DEFAULT_PAIR_TTL_MIN);
     }
     if cfg.passphrase.is_none() {
-        tracing::warn!("BLLU_DATA_PASSPHRASE is not set – readings are stored unencrypted in {}", cfg.data_dir.display());
+        tracing::warn!("GLLU_DATA_PASSPHRASE is not set – readings are stored unencrypted in {}", cfg.data_dir.display());
     }
     if cfg.allow.is_empty() && !cfg.listen.ip().is_loopback() {
-        tracing::info!("BLLU_ALLOW_CIDRS is not set – any host that can reach port {} may try to connect", cfg.listen.port());
+        tracing::info!("GLLU_ALLOW_CIDRS is not set – any host that can reach port {} may try to connect", cfg.listen.port());
     }
     tracing::info!(
-        "bllu-server {VERSION} listening on {} (public URL {}, certificate {}, TLS 1.3 + client certificates)",
+        "gllu-server {VERSION} listening on {} (public URL {}, certificate {}, TLS 1.3 + client certificates)",
         cfg.listen,
         cfg.public_url(),
         sync::short_fingerprint(&tls.fingerprint)
@@ -1093,7 +1100,7 @@ async fn serve_with(cfg: Config, handle: axum_server::Handle<SocketAddr>) -> Res
         cfg,
     });
     if state.cfg.demo {
-        tracing::warn!("BLLU_DEMO is set – serving synthetic data, LibreLinkUp is not polled");
+        tracing::warn!("GLLU_DEMO is set – serving synthetic data, LibreLinkUp is not polled");
         tokio::spawn(demo_poller(state.clone()));
     } else {
         tokio::spawn(poller(state.clone()));
@@ -1128,8 +1135,8 @@ async fn shutdown_signal() {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use bllu_core::api::Reading;
-    use bllu_core::sync::{ClientIdentity, SyncClient, SyncError};
+    use gllu_core::api::Reading;
+    use gllu_core::sync::{ClientIdentity, SyncClient, SyncError};
 
     fn test_config(dir: &Path) -> Config {
         Config {
@@ -1185,7 +1192,7 @@ mod tests {
     }
 
     fn tmp(name: &str) -> PathBuf {
-        let dir = std::env::temp_dir().join(format!("bllu-server-test-{name}-{}", std::process::id()));
+        let dir = std::env::temp_dir().join(format!("gllu-server-test-{name}-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&dir);
         dir
     }

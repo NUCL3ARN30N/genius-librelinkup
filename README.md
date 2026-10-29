@@ -1,9 +1,9 @@
-# Better LibreLinkUp
+# Genius LibreLinkUp
 
-[![GitHub stars](https://img.shields.io/github/stars/NUCL3ARN30N/better-librelinkup?style=for-the-badge)](https://github.com/NUCL3ARN30N/better-librelinkup/stargazers)
-[![GitHub forks](https://img.shields.io/github/forks/NUCL3ARN30N/better-librelinkup?style=for-the-badge)](https://github.com/NUCL3ARN30N/better-librelinkup/network/members)
-[![GitHub issues](https://img.shields.io/github/issues/NUCL3ARN30N/better-librelinkup?style=for-the-badge)](https://github.com/NUCL3ARN30N/better-librelinkup/issues)
-[![GitHub license](https://img.shields.io/github/license/NUCL3ARN30N/better-librelinkup?style=for-the-badge)](LICENSE)
+[![GitHub stars](https://img.shields.io/github/stars/NUCL3ARN30N/genius-librelinkup?style=for-the-badge)](https://github.com/NUCL3ARN30N/genius-librelinkup/stargazers)
+[![GitHub forks](https://img.shields.io/github/forks/NUCL3ARN30N/genius-librelinkup?style=for-the-badge)](https://github.com/NUCL3ARN30N/genius-librelinkup/network/members)
+[![GitHub issues](https://img.shields.io/github/issues/NUCL3ARN30N/genius-librelinkup?style=for-the-badge)](https://github.com/NUCL3ARN30N/genius-librelinkup/issues)
+[![GitHub license](https://img.shields.io/github/license/NUCL3ARN30N/genius-librelinkup?style=for-the-badge)](LICENSE)
 
 ![Rust](https://img.shields.io/badge/Rust-000000?style=for-the-badge&logo=rust&logoColor=white)
 ![Slint](https://img.shields.io/badge/Slint-2379F4?style=for-the-badge&logo=slint&logoColor=white)
@@ -19,16 +19,16 @@
 ## Quick Start
 
 Download the installer, portable exe or `.deb` from the
-[latest release](https://github.com/NUCL3ARN30N/better-librelinkup/releases), sign in with your
+[latest release](https://github.com/NUCL3ARN30N/genius-librelinkup/releases), sign in with your
 LibreLinkUp account, and the current value appears in the tray.
 
 ```
-better-librelinkup              # normal start
-better-librelinkup --minimized  # start in the tray (used by autostart)
-better-librelinkup --dev        # developer mode (API log)
-better-librelinkup --demo       # synthetic data, no account, writes nothing permanent
-better-librelinkup --probe      # terminal API check, see below
-better-librelinkup --tray-preview <dir>   # write magnified tray icon sheets (16/20/24/32 px)
+genius-librelinkup              # normal start
+genius-librelinkup --minimized  # start in the tray (used by autostart)
+genius-librelinkup --dev        # developer mode (API log)
+genius-librelinkup --demo       # synthetic data, no account, writes nothing permanent
+genius-librelinkup --probe      # terminal API check, see below
+genius-librelinkup --tray-preview <dir>   # write magnified tray icon sheets (16/20/24/32 px)
 ```
 
 ## Features
@@ -47,7 +47,7 @@ better-librelinkup --tray-preview <dir>   # write magnified tray icon sheets (16
 | 10 | **Automatic server discovery** | Reads Abbott's live `regionalMap` (`/llu/config/country`), follows login redirects to the right region, and caches the result. Manual server override available                                                                                                                                                                                                                                                          |
 | 11 | **Developer mode**             | In-app API log with redacted requests and responses, also written to a daily rolling log file                                                                                                                                                                                                                                                                                                                            |
 | 12 | **Caching server**             | See [Caching Server](#caching-server)                                                                                                                                                                                                                                                                                                                                                                                    |
-| 13 | **Built-in updater**           | Checks the [GitHub releases](https://github.com/NUCL3ARN30N/better-librelinkup/releases) every 12 h (or on demand) and updates in place: silent installer run, portable exe swap, or `apt` via `pkexec` for the `.deb`. Downloads are only installed when they match the release's `SHA256SUMS.txt`                                                                                                                      |
+| 13 | **Built-in updater**           | Checks the [GitHub releases](https://github.com/NUCL3ARN30N/genius-librelinkup/releases) every 12 h (or on demand) and updates in place: silent installer run, portable exe swap, or `apt` via `pkexec` for the `.deb`. Downloads are only installed when they match the release's `SHA256SUMS.txt`                                                                                                                      |
 | 14 | **OS keychain**                | Credentials, the log passphrase and the server token live in Windows Credential Manager or Secret Service, never in plain files                                                                                                                                                                                                                                                                                          |
 | 15 | **Desktop niceties**           | Autostart, start-minimized, light/dark/system theme, mmol/L or mg/dL units                                                                                                                                                                                                                                                                                                                                               |
 
@@ -63,7 +63,7 @@ better-librelinkup --tray-preview <dir>   # write magnified tray icon sheets (16
 
 ## Caching Server
 
-An always-on `bllu-server` ([`server/`](server/README.md), Docker / LXC) polls LibreLinkUp while your
+An always-on `gllu-server` ([`server/`](server/README.md), Docker / LXC) polls LibreLinkUp while your
 computer is off. Paired apps fill the gaps automatically and can take their live values from it
 instead of logging in themselves.
 
@@ -99,7 +99,7 @@ Credentials come only from environment variables:
 
 ```powershell
 $env:LLU_EMAIL = "you@example.com"; $env:LLU_PASSWORD = Read-Host -MaskInput "Password"
-better-librelinkup --probe | Out-Host     # the pipe makes PowerShell wait for the (GUI) exe's output
+genius-librelinkup --probe | Out-Host     # the pipe makes PowerShell wait for the (GUI) exe's output
 Remove-Item Env:LLU_PASSWORD
 # optional: $env:LLU_SERVER = "https://api-eu2.libreview.io"; $env:LLU_DUMP = 1 (prints redacted responses)
 ```
@@ -108,16 +108,24 @@ Remove-Item Env:LLU_PASSWORD
 
 | Data                      | Windows                                                                                                               | Linux                                        |
 | ------------------------- | --------------------------------------------------------------------------------------------------------------------- | -------------------------------------------- |
-| **Settings**              | `%APPDATA%\better-librelinkup\better-librelinkup\config\settings.json`                                                | `~/.config/better-librelinkup/settings.json` |
-| **Glucose log (default)** | `%APPDATA%\better-librelinkup\better-librelinkup\data\log\` | `~/.local/share/better-librelinkup/log/`                |                                              |
-| **App/API log**           | `%LOCALAPPDATA%\better-librelinkup\better-librelinkup\data\app-logs\` | `~/.local/share/better-librelinkup/app-logs/` |                                              |
+| **Settings**              | `%APPDATA%\genius-librelinkup\genius-librelinkup\config\settings.json`                                                | `~/.config/genius-librelinkup/settings.json` |
+| **Glucose log (default)** | `%APPDATA%\genius-librelinkup\genius-librelinkup\data\log\` | `~/.local/share/genius-librelinkup/log/`                |                                              |
+| **App/API log**           | `%LOCALAPPDATA%\genius-librelinkup\genius-librelinkup\data\app-logs\` | `~/.local/share/genius-librelinkup/app-logs/` |                                              |
 
-Log format: `vault.json` (KDF parameters, salt, check value) plus one `glucose-YYYY-MM.bllu` file per
-month: magic `BLLU`, version, cipher byte, then a 24-byte nonce and ciphertext of 11-byte records
+Log format: `vault.json` (KDF parameters, salt, check value) plus one `glucose-YYYY-MM.gllu` file per
+month: magic `BLLU` (kept from the former name), version, cipher byte, then a 24-byte nonce and ciphertext of 11-byte records
 (`i64` unix time, `u16` mg/dL, `u8` trend).
 
-Setting `BLLU_HOME=<dir>` keeps settings, log and app logs in that folder and uses a separate
+Setting `GLLU_HOME=<dir>` keeps settings, log and app logs in that folder and uses a separate
 keychain namespace. Use it for portable setups or for test copies next to your normal install.
+
+### Upgrading from Better LibreLinkUp
+
+The app was called **Better LibreLinkUp** (`better-librelinkup`) up to v0.1.1. Updating from it,
+in the app or with the new setup, migrates everything on the first start: settings and the
+glucose log move to the folders above, keychain entries and the autostart entry are carried
+over, and `.bllu` month files are renamed to `.gllu` (also inside a custom, synced log folder).
+Old `bllu1:` pairing codes keep working. Update every computer that shares a synced log folder.
 
 ## Building
 
@@ -125,13 +133,13 @@ The repository is a Cargo workspace:
 
 | Crate                          | Contents                                                      |
 | ------------------------------ | ------------------------------------------------------------- |
-| **`.`** (`better-librelinkup`) | Desktop app (Slint UI, tray, updater)                         |
-| **`core/`** (`bllu-core`)      | LibreLinkUp client, encrypted store, sync protocol, demo data |
-| **`server/`** (`bllu-server`)  | Caching server, see [server/README.md](server/README.md)      |
+| **`.`** (`genius-librelinkup`) | Desktop app (Slint UI, tray, updater)                         |
+| **`core/`** (`gllu-core`)      | LibreLinkUp client, encrypted store, sync protocol, demo data |
+| **`server/`** (`gllu-server`)  | Caching server, see [server/README.md](server/README.md)      |
 
 ```bash
-cargo build --release                  # desktop app: target/release/better-librelinkup(.exe)
-cargo build --release -p bllu-server   # caching server (no GUI dependencies)
+cargo build --release                  # desktop app: target/release/genius-librelinkup(.exe)
+cargo build --release -p gllu-server   # caching server (no GUI dependencies)
 cargo test --workspace
 ```
 
@@ -139,7 +147,7 @@ cargo test --workspace
 
 ```bash
 cargo install cargo-deb
-cargo deb                        # target/debian/better-librelinkup_*.deb
+cargo deb                        # target/debian/genius-librelinkup_*.deb
 ```
 
 **Windows installer** – [Inno Setup 6](https://jrsoftware.org/isinfo.php):
@@ -149,9 +157,9 @@ iscc /DAppVersion=0.1.0 packaging\windows\installer.iss   # target/installer/*.e
 ```
 
 GitHub Actions (`.github/workflows/build.yml`) builds everything. A `v*` tag publishes a release
-with the installer, the portable exe, the `.deb`, the `bllu-server` Linux binary and
+with the installer, the portable exe, the `.deb`, the `gllu-server` Linux binary and
 `SHA256SUMS.txt` (the updater relies on these asset names), and pushes the server image to
-`ghcr.io/nucl3arn30n/bllu-server`.
+`ghcr.io/nucl3arn30n/gllu-server`.
 
 ## Requirements
 

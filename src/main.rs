@@ -3,6 +3,7 @@
 mod alerts;
 mod config;
 mod icon;
+mod migrate;
 mod platform;
 mod secrets;
 mod stats;
@@ -21,7 +22,7 @@ use anyhow::Result;
 use slint::ComponentHandle;
 use tokio::sync::{mpsc, oneshot};
 
-use bllu_core::{api, demo, devlog, store};
+use gllu_core::{api, demo, devlog, store};
 use worker::Cmd;
 
 slint::include_modules!();
@@ -39,7 +40,7 @@ fn main() -> Result<()> {
 
     if has("--help") || has("-h") {
         println!(
-            "better-librelinkup [--minimized] [--dev] [--demo] [--probe] [--write-icons <dir>]\n\n\
+            "genius-librelinkup [--minimized] [--dev] [--demo] [--probe] [--write-icons <dir>]\n\n\
              --minimized     start in the tray\n\
              --dev           enable developer mode (API log)\n\
              --demo          run with synthetic data (no account, nothing is saved)\n\
@@ -171,13 +172,13 @@ fn init_logging(dev: bool) -> tracing_appender::non_blocking::WorkerGuard {
     let _ = std::fs::create_dir_all(&dir);
     let appender = tracing_appender::rolling::Builder::new()
         .rotation(tracing_appender::rolling::Rotation::DAILY)
-        .filename_prefix("better-librelinkup")
+        .filename_prefix("genius-librelinkup")
         .filename_suffix("log")
         .max_log_files(7)
         .build(&dir)
         .expect("log appender");
     let (file, guard) = tracing_appender::non_blocking(appender);
-    let default = if dev { "info,better_librelinkup=debug" } else { "info" };
+    let default = if dev { "info,genius_librelinkup=debug" } else { "info" };
     let filter = tracing_subscriber::EnvFilter::try_from_default_env().unwrap_or_else(|_| default.into());
     tracing_subscriber::registry()
         .with(filter)
@@ -188,6 +189,9 @@ fn init_logging(dev: bool) -> tracing_appender::non_blocking::WorkerGuard {
 }
 
 fn run_app(minimized: bool, dev: bool, demo: bool, listener: TcpListener) -> Result<()> {
+    if !demo && config::home_override().is_none() {
+        migrate::from_better_librelinkup();
+    }
     let mut settings = config::Settings::load();
     if dev {
         settings.dev_mode = true;
@@ -320,7 +324,7 @@ fn wire_callbacks(ui: &AppWindow, tx: &mpsc::UnboundedSender<Cmd>, devlog: &devl
     let t = tx.clone();
     b.on_export_settings(move || {
         if let Some(p) = rfd::FileDialog::new()
-            .set_file_name("better-librelinkup-settings.json")
+            .set_file_name("genius-librelinkup-settings.json")
             .add_filter("JSON", &["json"])
             .save_file()
         {

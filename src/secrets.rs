@@ -3,7 +3,7 @@
 
 use std::sync::atomic::{AtomicBool, Ordering};
 
-const SERVICE: &str = "better-librelinkup";
+const SERVICE: &str = "genius-librelinkup";
 const PASSPHRASE_USER: &str = "log-passphrase";
 
 /// Demo mode must never read or write the real keychain.
@@ -86,15 +86,30 @@ const SYNC_USER: &str = "sync-credentials";
 const LEGACY_SYNC_USER: &str = "sync-token";
 
 /// Token + TLS client key of the caching-server pairing (never written to settings files).
-pub fn sync_credentials() -> Option<bllu_core::sync::SyncCredentials> {
+pub fn sync_credentials() -> Option<gllu_core::sync::SyncCredentials> {
     serde_json::from_str(&get(SYNC_USER)?).ok()
 }
 
-pub fn store_sync_credentials(c: &bllu_core::sync::SyncCredentials) -> bool {
+pub fn store_sync_credentials(c: &gllu_core::sync::SyncCredentials) -> bool {
     serde_json::to_string(c).is_ok_and(|s| set(SYNC_USER, &s))
 }
 
 pub fn forget_sync_credentials() {
     delete(SYNC_USER);
     delete(LEGACY_SYNC_USER);
+}
+
+/// Moves the entries of a former service name (app rename) to the current one.
+pub fn migrate_from(old_service: &str, email: &str) {
+    let mut users = vec![PASSPHRASE_USER.to_string(), SYNC_USER.to_string(), LEGACY_SYNC_USER.to_string()];
+    if !email.trim().is_empty() {
+        users.push(account_user(email));
+    }
+    for user in users {
+        let Ok(old) = keyring::Entry::new(old_service, &user) else { continue };
+        let Some(secret) = old.get_password().ok().filter(|s| !s.is_empty()) else { continue };
+        if get(&user).is_some() || set(&user, &secret) {
+            let _ = old.delete_credential();
+        }
+    }
 }

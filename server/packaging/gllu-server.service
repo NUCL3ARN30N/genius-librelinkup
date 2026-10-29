@@ -1,19 +1,19 @@
 [Unit]
-Description=Better LibreLinkUp caching server
-Documentation=https://github.com/NUCL3ARN30N/better-librelinkup
+Description=Genius LibreLinkUp caching server
+Documentation=https://github.com/NUCL3ARN30N/genius-librelinkup
 After=network-online.target
 Wants=network-online.target
 
 [Service]
-User=bllu
-Group=bllu
-EnvironmentFile=/etc/bllu-server.env
-Environment=BLLU_DATA_DIR=/var/lib/bllu-server
-ExecStart=/usr/local/bin/bllu-server serve
+User=gllu
+Group=gllu
+EnvironmentFile=/etc/gllu-server.env
+Environment=GLLU_DATA_DIR=/var/lib/gllu-server
+ExecStart=/usr/local/bin/gllu-server serve
 Restart=always
 RestartSec=10
 UMask=0077
-StateDirectory=bllu-server
+StateDirectory=gllu-server
 StateDirectoryMode=0700
 
 # sandbox: the service can only write its state directory and only open network sockets

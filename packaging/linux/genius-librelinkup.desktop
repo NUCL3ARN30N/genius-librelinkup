@@ -1,11 +1,11 @@
 [Desktop Entry]
 Type=Application
-Name=Better LibreLinkUp
+Name=Genius LibreLinkUp
 GenericName=Glucose monitor
 Comment=Shows your FreeStyle Libre glucose from LibreLinkUp in the tray
-Exec=better-librelinkup
-Icon=better-librelinkup
+Exec=genius-librelinkup
+Icon=genius-librelinkup
 Terminal=false
 Categories=Utility;MedicalSoftware;
 Keywords=glucose;diabetes;libre;cgm;librelinkup;
-StartupWMClass=better-librelinkup
+StartupWMClass=genius-librelinkup

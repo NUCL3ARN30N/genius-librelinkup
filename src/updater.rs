@@ -13,7 +13,7 @@ use anyhow::{Context, Result, anyhow, bail};
 use serde::Deserialize;
 use sha2::{Digest, Sha256};
 
-pub const REPO: &str = "NUCL3ARN30N/better-librelinkup";
+pub const REPO: &str = "NUCL3ARN30N/genius-librelinkup";
 pub const CURRENT: &str = env!("CARGO_PKG_VERSION");
 const SUMS: &str = "SHA256SUMS.txt";
 
@@ -77,7 +77,7 @@ pub fn install_kind() -> InstallKind {
 
 fn http() -> reqwest::Client {
     reqwest::Client::builder()
-        .user_agent(concat!("better-librelinkup/", env!("CARGO_PKG_VERSION")))
+        .user_agent(concat!("genius-librelinkup/", env!("CARGO_PKG_VERSION")))
         .connect_timeout(Duration::from_secs(10))
         .build()
         .expect("http client")
@@ -153,7 +153,7 @@ pub async fn download(release: &Release, asset: &Asset, progress: impl Fn(f32)) 
         .map(|(_, h)| h)
         .ok_or_else(|| anyhow!("{} is not listed in {SUMS}", asset.name))?;
 
-    let dir = std::env::temp_dir().join("better-librelinkup-update");
+    let dir = std::env::temp_dir().join("genius-librelinkup-update");
     std::fs::create_dir_all(&dir)?;
     let path = dir.join(&asset.name);
     let mut resp = client.get(&asset.browser_download_url).send().await?.error_for_status()?;
@@ -205,7 +205,7 @@ pub fn install(kind: InstallKind, file: &Path) -> Result<bool> {
             if !status.success() {
                 bail!("the package installation was cancelled or failed ({status})");
             }
-            std::process::Command::new("/usr/bin/better-librelinkup").arg("--updated").spawn()?;
+            std::process::Command::new("/usr/bin/genius-librelinkup").arg("--updated").spawn()?;
             Ok(true)
         }
         InstallKind::Manual => bail!("this copy was not installed from a release; download the update manually"),
@@ -217,6 +217,8 @@ pub fn cleanup_after_update() {
     if let Ok(exe) = std::env::current_exe() {
         let _ = std::fs::remove_file(exe.with_extension("exe.old"));
     }
+    let _ = std::fs::remove_dir_all(std::env::temp_dir().join("genius-librelinkup-update"));
+    // download folder of the update from the former "Better LibreLinkUp"
     let _ = std::fs::remove_dir_all(std::env::temp_dir().join("better-librelinkup-update"));
 }
 
@@ -248,9 +250,9 @@ mod tests {
             body: None,
             html_url: String::new(),
             assets: vec![
-                mk("better-librelinkup-0.2.0-setup.exe"),
-                mk("better-librelinkup-0.2.0-windows-x64.exe"),
-                mk("better-librelinkup_0.2.0-1_amd64.deb"),
+                mk("genius-librelinkup-0.2.0-setup.exe"),
+                mk("genius-librelinkup-0.2.0-windows-x64.exe"),
+                mk("genius-librelinkup_0.2.0-1_amd64.deb"),
             ],
         };
         assert_eq!(r.version(), "0.2.0");

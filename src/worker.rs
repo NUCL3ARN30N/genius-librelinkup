@@ -20,7 +20,7 @@ use crate::{
     AppWindow, Dashboard, DevBridge, LogItem, Reports, SettingsBridge, SyncBridge, Theme, Toast, UiAppearance, UiSettings,
     UpdateBridge, platform, secrets, stats, tray, trayicon, ui_model, updater,
 };
-use bllu_core::sync::{self, ClientIdentity, PairingCode, PatientInfo, SyncClient, SyncCredentials, SyncError};
+use gllu_core::sync::{self, ClientIdentity, PairingCode, PatientInfo, SyncClient, SyncCredentials, SyncError};
 use slint::ComponentHandle;
 
 pub enum Cmd {
@@ -420,7 +420,7 @@ impl Worker {
             }
             None => (
                 tray::TrayContent { text: "-".into(), trend: 0, color: [0x75, 0x75, 0x75, 0xff], style: look.tray.clone() },
-                "Better LibreLinkUp – no data".into(),
+                "Genius LibreLinkUp – no data".into(),
             ),
         };
 
@@ -685,7 +685,7 @@ impl Worker {
                     let name = entry.file_name().to_string_lossy().to_string();
                     let ours = name == "vault.json"
                         || name == "vault.tmp"
-                        || (name.starts_with("glucose-") && (name.ends_with(".bllu") || name.ends_with(".tmp")));
+                        || (name.starts_with("glucose-") && (name.ends_with(".gllu") || name.ends_with(".bllu") || name.ends_with(".tmp")));
                     if ours {
                         remove_file(&entry.path(), &mut failed);
                     }
@@ -697,7 +697,7 @@ impl Worker {
         secrets::forget_password(&self.s.email);
         secrets::forget_passphrase();
         secrets::forget_sync_credentials();
-        // both are per OS user, not per BLLU_HOME: a test or portable copy must not remove the
+        // both are per OS user, not per GLLU_HOME: a test or portable copy must not remove the
         // entries of the normal installation
         if self.s.autostart
             && let Err(e) = platform::set_autostart(false)
@@ -714,13 +714,13 @@ impl Worker {
         // the current log file is still open; Windows deletes it once the app has exited
         let _ = std::fs::remove_dir_all(app_log_dir());
         for dir in [cfg.parent(), default_log_dir().parent(), app_log_dir().parent()].into_iter().flatten() {
-            // remove the (now empty) app folders, e.g. %APPDATA%\better-librelinkup\…\config
+            // remove the (now empty) app folders, e.g. %APPDATA%\genius-librelinkup\…\config
             let mut d = Some(dir);
             while let Some(p) = d {
                 if crate::config::home_override().is_some_and(|h| h == p) || std::fs::remove_dir(p).is_err() {
                     break;
                 }
-                d = p.parent().filter(|p| p.file_name().is_some_and(|n| n.to_string_lossy().contains("better-librelinkup")));
+                d = p.parent().filter(|p| p.file_name().is_some_and(|n| n.to_string_lossy().contains("genius-librelinkup")));
             }
         }
 
@@ -1331,7 +1331,7 @@ impl Worker {
     /// `--demo`: synthetic data in a throw-away log, no network and no settings are written.
     fn start_demo(&mut self) {
         secrets::disable();
-        let dir = std::env::temp_dir().join(format!("better-librelinkup-demo-{}", std::process::id()));
+        let dir = std::env::temp_dir().join(format!("genius-librelinkup-demo-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&dir);
         self.s.log_enabled = true;
         self.s.log_dir = dir.display().to_string();
@@ -1555,7 +1555,7 @@ impl Worker {
                         self.notified_update = version.clone();
                         alerts::show(
                             "Update available",
-                            &format!("Better LibreLinkUp {version} is available – open Settings → Updates."),
+                            &format!("Genius LibreLinkUp {version} is available – open Settings → Updates."),
                             false,
                         );
                     }
@@ -1565,7 +1565,7 @@ impl Worker {
                 } else {
                     self.push_update_state(&format!("You have the latest version ({checked})"), false, -1.0);
                     if manual {
-                        self.toast("Better LibreLinkUp is up to date");
+                        self.toast("Genius LibreLinkUp is up to date");
                     }
                 }
             }
@@ -1709,7 +1709,7 @@ impl Worker {
         let result: Result<(), String> = async {
             let code = PairingCode::decode(&code).map_err(|e| format!("{e:#}"))?;
             let host = std::env::var("COMPUTERNAME").or_else(|_| std::env::var("HOSTNAME")).unwrap_or_else(|_| "desktop".into());
-            let name = format!("Better LibreLinkUp on {host}");
+            let name = format!("Genius LibreLinkUp on {host}");
             // a fresh key pair per pairing; the private key never leaves this computer
             let identity = ClientIdentity::generate(&name).map_err(|e| format!("{e:#}"))?;
             let client = SyncClient::new(&code.url, &code.fingerprint, None, &identity).map_err(|e| format!("{e:#}"))?;

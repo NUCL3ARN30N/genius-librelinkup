@@ -11,10 +11,10 @@ permissions:
   contents: read
 
 # Release assets (the in-app updater and server/packaging/install-lxc.sh rely on these names):
-#   better-librelinkup-<v>-setup.exe        Windows installer
-#   better-librelinkup-<v>-windows-x64.exe  Windows portable exe
-#   better-librelinkup_<v>-1_amd64.deb      Linux package
-#   bllu-server-<v>-linux-x64               caching server binary (glibc ≥ 2.35)
+#   genius-librelinkup-<v>-setup.exe        Windows installer
+#   genius-librelinkup-<v>-windows-x64.exe  Windows portable exe
+#   genius-librelinkup_<v>-1_amd64.deb      Linux package
+#   gllu-server-<v>-linux-x64               caching server binary (glibc ≥ 2.35)
 #   SHA256SUMS.txt                          checksums of all of the above (required by the updater)
 
 jobs:
@@ -24,16 +24,16 @@ jobs:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
-      - run: cargo test --workspace --exclude bllu-server
-      - run: cargo build --release -p better-librelinkup
+      - run: cargo test --workspace --exclude gllu-server
+      - run: cargo build --release -p genius-librelinkup
       - name: Installer and portable exe
         shell: pwsh
         run: |
-          $version = ((cargo metadata --no-deps --format-version 1 | ConvertFrom-Json).packages | Where-Object name -eq 'better-librelinkup').version
+          $version = ((cargo metadata --no-deps --format-version 1 | ConvertFrom-Json).packages | Where-Object name -eq 'genius-librelinkup').version
           & "${env:ProgramFiles(x86)}\Inno Setup 6\iscc.exe" /DAppVersion=$version packaging\windows\installer.iss
           New-Item -ItemType Directory -Force out | Out-Null
           Copy-Item target\installer\*.exe out\
-          Copy-Item target\release\better-librelinkup.exe "out\better-librelinkup-$version-windows-x64.exe"
+          Copy-Item target\release\genius-librelinkup.exe "out\genius-librelinkup-$version-windows-x64.exe"
       - uses: actions/upload-artifact@v4
         with:
           name: windows
@@ -49,15 +49,15 @@ jobs:
       - name: System libraries for Slint
         run: sudo apt-get update && sudo apt-get install -y libfontconfig1-dev libxkbcommon-dev libwayland-dev
       - run: cargo test --workspace
-      - run: cargo build --release -p better-librelinkup -p bllu-server
+      - run: cargo build --release -p genius-librelinkup -p gllu-server
       - run: cargo install cargo-deb --locked
-      - run: cargo deb -p better-librelinkup --no-build
+      - run: cargo deb -p genius-librelinkup --no-build
       - name: Collect
         run: |
-          version=$(cargo metadata --no-deps --format-version 1 | jq -r '.packages[] | select(.name=="bllu-server") | .version')
+          version=$(cargo metadata --no-deps --format-version 1 | jq -r '.packages[] | select(.name=="gllu-server") | .version')
           mkdir -p out
           cp target/debian/*.deb out/
-          cp target/release/bllu-server "out/bllu-server-$version-linux-x64"
+          cp target/release/gllu-server "out/gllu-server-$version-linux-x64"
       - uses: actions/upload-artifact@v4
         with:
           name: linux
@@ -80,7 +80,7 @@ jobs:
       - name: Image name
         id: meta
         run: |
-          echo "image=ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/bllu-server" >> "$GITHUB_OUTPUT"
+          echo "image=ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/gllu-server" >> "$GITHUB_OUTPUT"
           echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
       - uses: docker/build-push-action@v6
         with:

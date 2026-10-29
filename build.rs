@@ -16,8 +16,8 @@ fn main() {
     {
         let mut res = winresource::WindowsResource::new();
         res.set_icon("assets/app.ico");
-        res.set("FileDescription", "Better LibreLinkUp");
-        res.set("ProductName", "Better LibreLinkUp");
+        res.set("FileDescription", "Genius LibreLinkUp");
+        res.set("ProductName", "Genius LibreLinkUp");
         if let Err(e) = res.compile() {
             println!("cargo:warning=could not embed Windows icon: {e}");
         }

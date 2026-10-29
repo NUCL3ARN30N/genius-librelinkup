@@ -121,7 +121,7 @@ impl Default for UpdateSettings {
     }
 }
 
-/// Pairing with a `bllu-server` caching server. The bearer token lives in the keyring.
+/// Pairing with a `gllu-server` caching server. The bearer token lives in the keyring.
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
 #[serde(default)]
 pub struct SyncSettings {
@@ -219,14 +219,14 @@ impl Default for Settings {
 }
 
 pub fn project_dirs() -> ProjectDirs {
-    ProjectDirs::from("io", "better-librelinkup", "better-librelinkup")
+    ProjectDirs::from("io", "genius-librelinkup", "genius-librelinkup")
         .expect("no home directory found")
 }
 
-/// `BLLU_HOME=<dir>` keeps settings, data and logs in one folder (isolated test copies,
+/// `GLLU_HOME=<dir>` keeps settings, data and logs in one folder (isolated test copies,
 /// portable setups). Secrets then use a separate keychain namespace, see `secrets`.
 pub fn home_override() -> Option<PathBuf> {
-    std::env::var_os("BLLU_HOME").filter(|v| !v.is_empty()).map(PathBuf::from)
+    std::env::var_os("GLLU_HOME").filter(|v| !v.is_empty()).map(PathBuf::from)
 }
 
 pub fn config_path() -> PathBuf {

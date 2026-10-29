@@ -1,4 +1,4 @@
-//! Glucose log: one file per month (`glucose-YYYY-MM.bllu`) inside a user chosen folder, so the
+//! Glucose log: one file per month (`glucose-YYYY-MM.gllu`) inside a user chosen folder, so the
 //! folder can live in Nextcloud/Dropbox/OneDrive. Files are optionally encrypted with
 //! XChaCha20-Poly1305 using a key derived from a passphrase with Argon2id (`vault.json` keeps
 //! the salt and a check value). Before a month is written the file on disk is merged in, so two
@@ -16,6 +16,8 @@ use serde::{Deserialize, Serialize};
 
 use crate::api::Reading;
 
+// The format constants (magic, check value, AAD prefix) keep the original "Better LibreLinkUp"
+// identifiers so logs written before the rename stay readable.
 const MAGIC: &[u8; 4] = b"BLLU";
 const FORMAT_VERSION: u8 = 1;
 const CIPHER_NONE: u8 = 0;
@@ -23,6 +25,9 @@ const CIPHER_XCHACHA: u8 = 1;
 const RECORD_LEN: usize = 11;
 const CHECK_PLAINTEXT: &[u8] = b"better-librelinkup vault check";
 pub const MMOL_FACTOR: f32 = 18.0182;
+const EXT: &str = ".gllu";
+/// Month files written before the rename to Genius LibreLinkUp.
+const LEGACY_EXT: &str = ".bllu";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum VaultState {
@@ -137,6 +142,7 @@ impl Store {
             Err(_) => Self::write_meta(dir, passphrase.filter(|p| !p.is_empty()))?,
         };
         let mut store = Store { dir: dir.to_path_buf(), key, months: BTreeMap::new() };
+        store.migrate_legacy_files()?;
         store.load_all()?;
         Ok(store)
     }
@@ -201,13 +207,34 @@ impl Store {
     }
 
     fn month_path(&self, (y, m): MonthId) -> PathBuf {
-        self.dir.join(format!("glucose-{y:04}-{m:02}.bllu"))
+        self.dir.join(format!("glucose-{y:04}-{m:02}{EXT}"))
+    }
+
+    /// Renames `.bllu` month files to `.gllu`; when both exist (another machine already
+    /// migrated the synced folder) the legacy file is merged in first.
+    fn migrate_legacy_files(&self) -> Result<()> {
+        for entry in std::fs::read_dir(&self.dir)? {
+            let name = entry?.file_name().to_string_lossy().to_string();
+            let Some(id) = parse_month_name(&name, LEGACY_EXT) else { continue };
+            let (legacy, path) = (self.dir.join(&name), self.month_path(id));
+            if path.exists() {
+                let mut readings = self.read_file(&path, id)?;
+                for (ts, v) in self.read_file(&legacy, id)? {
+                    readings.entry(ts).or_insert(v);
+                }
+                self.write_month_file(id, &readings)?;
+                std::fs::remove_file(&legacy)?;
+            } else {
+                std::fs::rename(&legacy, &path).with_context(|| format!("renaming {}", legacy.display()))?;
+            }
+        }
+        Ok(())
     }
 
     fn load_all(&mut self) -> Result<()> {
         for entry in std::fs::read_dir(&self.dir)? {
             let name = entry?.file_name().to_string_lossy().to_string();
-            if let Some(id) = parse_month_name(&name) {
+            if let Some(id) = parse_month_name(&name, EXT) {
                 let readings = self.read_month_file(id)?;
                 self.months.entry(id).or_default().readings.extend(readings);
             }
@@ -216,8 +243,11 @@ impl Store {
     }
 
     fn read_month_file(&self, id: MonthId) -> Result<BTreeMap<i64, (u16, u8)>> {
-        let path = self.month_path(id);
-        let data = match std::fs::read(&path) {
+        self.read_file(&self.month_path(id), id)
+    }
+
+    fn read_file(&self, path: &Path, id: MonthId) -> Result<BTreeMap<i64, (u16, u8)>> {
+        let data = match std::fs::read(path) {
             Ok(d) => d,
             Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(BTreeMap::new()),
             Err(e) => return Err(e.into()),
@@ -397,8 +427,8 @@ fn month_aad((y, m): MonthId) -> Vec<u8> {
     format!("bllu:{y:04}-{m:02}").into_bytes()
 }
 
-fn parse_month_name(name: &str) -> Option<MonthId> {
-    let rest = name.strip_prefix("glucose-")?.strip_suffix(".bllu")?;
+fn parse_month_name(name: &str, ext: &str) -> Option<MonthId> {
+    let rest = name.strip_prefix("glucose-")?.strip_suffix(ext)?;
     let (y, m) = rest.split_once('-')?;
     let (y, m) = (y.parse().ok()?, m.parse().ok()?);
     (1..=12).contains(&m).then_some((y, m))
@@ -483,7 +513,7 @@ pub fn parse_csv(text: &str) -> Result<Vec<Reading>> {
         }
     }
     if header.is_none() {
-        bail!("unrecognised CSV format (expected a better-librelinkup or LibreView export)");
+        bail!("unrecognised CSV format (expected a genius-librelinkup or LibreView export)");
     }
     Ok(out)
 }
@@ -493,7 +523,7 @@ mod tests {
     use super::*;
 
     fn tmpdir(name: &str) -> PathBuf {
-        let d = std::env::temp_dir().join(format!("bllu-test-{name}-{}", std::process::id()));
+        let d = std::env::temp_dir().join(format!("gllu-test-{name}-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&d);
         d
     }
@@ -516,8 +546,35 @@ mod tests {
         assert!(Store::open(&dir, Some("wrong")).is_err());
         let s = Store::open(&dir, Some("secret")).unwrap();
         assert_eq!(s.len(), 2);
-        let file = std::fs::read(dir.join("glucose-2026-01.bllu")).unwrap();
+        let file = std::fs::read(dir.join("glucose-2026-01.gllu")).unwrap();
         assert_eq!(file[5], CIPHER_XCHACHA);
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn migrates_legacy_month_files() {
+        let dir = tmpdir("legacy");
+        let path = |month: &str, ext: &str| dir.join(format!("glucose-2026-{month}.{ext}"));
+        {
+            let mut s = Store::open(&dir, Some("secret")).unwrap();
+            s.insert(&[reading(1_767_225_600, 100.0), reading(1_769_904_000, 110.0)]);
+            s.flush().unwrap();
+        }
+        // January only exists as .bllu; February gets a different reading in each file
+        std::fs::rename(path("01", "gllu"), path("01", "bllu")).unwrap();
+        std::fs::rename(path("02", "gllu"), dir.join("feb-legacy")).unwrap();
+        {
+            let mut s = Store::open(&dir, Some("secret")).unwrap();
+            s.insert(&[reading(1_769_904_060, 115.0)]);
+            s.flush().unwrap();
+        }
+        std::fs::rename(dir.join("feb-legacy"), path("02", "bllu")).unwrap();
+
+        let s = Store::open(&dir, Some("secret")).unwrap();
+        assert_eq!(s.len(), 3);
+        for month in ["01", "02"] {
+            assert!(path(month, "gllu").exists() && !path(month, "bllu").exists());
+        }
         let _ = std::fs::remove_dir_all(&dir);
     }
 

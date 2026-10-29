@@ -663,35 +663,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2af50177e190e07a26ab74f8b1efbfe2ef87da2116221318cb1c2e82baf7de06"
 
 [[package]]
-name = "better-librelinkup"
-version = "0.1.1"
-dependencies = [
- "anyhow",
- "bllu-core",
- "chrono",
- "directories",
- "hex",
- "keyring",
- "notify-rust",
- "reqwest",
- "resvg",
- "rfd",
- "serde",
- "serde_json",
- "sha2",
- "slint",
- "slint-build",
- "thiserror 2.0.21",
- "tokio",
- "tracing",
- "tracing-appender",
- "tracing-subscriber",
- "tray-icon",
- "winreg",
- "winresource",
-]
-
-[[package]]
 name = "bincode"
 version = "2.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -761,54 +732,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5b5d4d889834ee8ecfc0f8426ad30faf7cdcb10f741a8e6d7224d95325479f6f"
 dependencies = [
  "digest",
-]
-
-[[package]]
-name = "bllu-core"
-version = "0.1.1"
-dependencies = [
- "anyhow",
- "argon2",
- "base64 0.22.1",
- "chacha20poly1305",
- "chrono",
- "hex",
- "rand",
- "rcgen",
- "reqwest",
- "rustls",
- "serde",
- "serde_json",
- "sha2",
- "thiserror 2.0.21",
- "tracing",
- "webpki-roots",
-]
-
-[[package]]
-name = "bllu-server"
-version = "0.1.1"
-dependencies = [
- "anyhow",
- "axum",
- "axum-server",
- "bllu-core",
- "chrono",
- "hex",
- "ipnet",
- "rand",
- "rcgen",
- "reqwest",
- "rustls",
- "serde",
- "serde_json",
- "sha2",
- "tokio",
- "tokio-rustls",
- "tower",
- "tower-http 0.7.1",
- "tracing",
- "tracing-subscriber",
 ]
 
 [[package]]
@@ -1983,6 +1906,35 @@ dependencies = [
 ]
 
 [[package]]
+name = "genius-librelinkup"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "chrono",
+ "directories",
+ "gllu-core",
+ "hex",
+ "keyring",
+ "notify-rust",
+ "reqwest",
+ "resvg",
+ "rfd",
+ "serde",
+ "serde_json",
+ "sha2",
+ "slint",
+ "slint-build",
+ "thiserror 2.0.21",
+ "tokio",
+ "tracing",
+ "tracing-appender",
+ "tracing-subscriber",
+ "tray-icon",
+ "winreg",
+ "winresource",
+]
+
+[[package]]
 name = "gethostname"
 version = "1.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2050,6 +2002,54 @@ dependencies = [
  "khronos_api",
  "log",
  "xml-rs",
+]
+
+[[package]]
+name = "gllu-core"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "argon2",
+ "base64 0.22.1",
+ "chacha20poly1305",
+ "chrono",
+ "hex",
+ "rand",
+ "rcgen",
+ "reqwest",
+ "rustls",
+ "serde",
+ "serde_json",
+ "sha2",
+ "thiserror 2.0.21",
+ "tracing",
+ "webpki-roots",
+]
+
+[[package]]
+name = "gllu-server"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "axum",
+ "axum-server",
+ "chrono",
+ "gllu-core",
+ "hex",
+ "ipnet",
+ "rand",
+ "rcgen",
+ "reqwest",
+ "rustls",
+ "serde",
+ "serde_json",
+ "sha2",
+ "tokio",
+ "tokio-rustls",
+ "tower",
+ "tower-http 0.7.1",
+ "tracing",
+ "tracing-subscriber",
 ]
 
 [[package]]

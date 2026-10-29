@@ -629,18 +629,18 @@ component SettingsPage inherits Rectangle {
 
                 SettingsSection {
                     title: "Caching server";
-                    subtitle: "An always-on bllu-server keeps polling while this computer is off and fills the gaps here.";
+                    subtitle: "An always-on gllu-server keeps polling while this computer is off and fills the gaps here.";
                     if !SyncBridge.paired: VerticalLayout {
                         spacing: 12px;
                         Caption {
-                            text: "On the server run  bllu-server pair  (Docker: docker exec bllu bllu-server pair) and paste the code. The code pins the server's certificate, so the connection cannot be intercepted.";
+                            text: "On the server run  gllu-server pair  (Docker: docker exec gllu gllu-server pair) and paste the code. The code pins the server's certificate, so the connection cannot be intercepted.";
                             font-size: 13px;
                         }
                         HorizontalLayout {
                             spacing: 8px;
                             pair-code := TextField {
                                 horizontal-stretch: 1;
-                                placeholder: "bllu1:…";
+                                placeholder: "gllu1:…";
                             }
                             VerticalLayout {
                                 alignment: center;
@@ -1015,7 +1015,7 @@ component SettingsPage inherits Rectangle {
                 }
 
                 Caption {
-                    text: "Better LibreLinkUp is an unofficial tool and not affiliated with Abbott. It uses an undocumented API that may change at any time. Do not make treatment decisions based on this app.";
+                    text: "Genius LibreLinkUp is an unofficial tool and not affiliated with Abbott. It uses an undocumented API that may change at any time. Do not make treatment decisions based on this app.";
                 }
             }
         }
@@ -1416,7 +1416,7 @@ component DialogCard inherits Card {
 }
 
 export component AppWindow inherits Window {
-    title: "Better LibreLinkUp";
+    title: "Genius LibreLinkUp";
     icon: @image-url("../assets/icon-256.png");
     preferred-width: 1120px;
     preferred-height: 800px;
@@ -1551,12 +1551,12 @@ export component AppWindow inherits Window {
             title: "Connect to a caching server";
             logo: true;
             Caption {
-                text: "Run  bllu-server pair  on your server and paste the pairing code. This computer then reads all values from the server and needs no LibreLinkUp login.";
+                text: "Run  gllu-server pair  on your server and paste the pairing code. This computer then reads all values from the server and needs no LibreLinkUp login.";
                 font-size: 13px;
             }
             login-pair := TextField {
                 label: "Pairing code";
-                placeholder: "bllu1:…";
+                placeholder: "gllu1:…";
             }
             if SyncBridge.status != "": Text {
                 text: SyncBridge.status;
@@ -1594,7 +1594,7 @@ export component AppWindow inherits Window {
         DialogCard {
             width: 440px;
             height: 500px;
-            title: "Better LibreLinkUp";
+            title: "Genius LibreLinkUp";
             logo: true;
             Caption {
                 text: "Sign in with your LibreLinkUp (follower) account.";
@@ -1792,7 +1792,7 @@ export component AppWindow inherits Window {
                 checked: true;
             }
             Caption {
-                text: "Export your readings first if you want to keep them. A paired caching server keeps listing this computer until you run  bllu-server revoke  there. The app closes when it is done.";
+                text: "Export your readings first if you want to keep them. A paired caching server keeps listing this computer until you run  gllu-server revoke  there. The app closes when it is done.";
                 font-size: 13px;
             }
             Rectangle { vertical-stretch: 1; }

@@ -50,10 +50,10 @@ impl AlertState {
 
 pub fn show(title: &str, body: &str, urgent: bool) {
     let mut n = notify_rust::Notification::new();
-    n.summary(title).body(body).appname("Better LibreLinkUp");
+    n.summary(title).body(body).appname("Genius LibreLinkUp");
     #[cfg(target_os = "linux")]
     {
-        n.icon("better-librelinkup");
+        n.icon("genius-librelinkup");
         if urgent {
             n.urgency(notify_rust::Urgency::Critical);
         }

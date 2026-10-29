@@ -17,10 +17,10 @@ server/data_passphrase.txt
 *.p12
 *.pfx
 
-# runtime data: bllu-server data directory (TLS key, client tokens, pairing codes, audit log,
-# readings) and the app's log, settings and logs from BLLU_HOME / test runs
+# runtime data: gllu-server data directory (TLS key, client tokens, pairing codes, audit log,
+# readings) and the app's log, settings and logs from GLLU_HOME / test runs
 data/
-*.bllu
+*.gllu
 vault.json
 app-logs/
 *.log

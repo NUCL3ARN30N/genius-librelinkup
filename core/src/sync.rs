@@ -1,8 +1,8 @@
-//! Protocol between the desktop app and the caching server (`bllu-server`).
+//! Protocol between the desktop app and the caching server (`gllu-server`).
 //!
 //! Security model (defence in depth – every layer has to fail before data leaks):
 //! 1. **TLS 1.3 only**, both directions authenticated (mutual TLS).
-//! 2. **Server pinning:** a *pairing code* (`bllu1:…`, printed by `bllu-server pair`) carries the
+//! 2. **Server pinning:** a *pairing code* (`gllu1:…`, printed by `gllu-server pair`) carries the
 //!    SHA-256 fingerprint of the server certificate. The client refuses any other certificate, so
 //!    the connection cannot be intercepted even on a hostile network.
 //! 3. **Client identity:** every desktop app creates its own ECDSA P-256 key pair (kept in the OS
@@ -13,7 +13,7 @@
 //! 5. **One-time pairing secret** (192 bit, short-lived, single use) authorises the binding.
 //!
 //! A stolen token is useless without the private key, a copied key is useless without the token,
-//! and revoking a client (`bllu-server revoke`) invalidates both.
+//! and revoking a client (`gllu-server revoke`) invalidates both.
 
 use std::sync::Arc;
 use std::time::Duration;
@@ -32,7 +32,9 @@ use sha2::{Digest, Sha256};
 
 use crate::api::Reading;
 
-pub const PAIRING_PREFIX: &str = "bllu1:";
+pub const PAIRING_PREFIX: &str = "gllu1:";
+/// Prefix of codes printed by servers from before the rename to Genius LibreLinkUp.
+const LEGACY_PAIRING_PREFIX: &str = "bllu1:";
 pub const API_VERSION: u32 = 2;
 /// Largest response body the client accepts (400 days of 1-minute readings fit comfortably).
 const MAX_RESPONSE: usize = 32 * 1024 * 1024;
@@ -55,9 +57,10 @@ impl PairingCode {
     }
 
     pub fn decode(s: &str) -> Result<Self> {
+        let s = s.trim();
         let body = s
-            .trim()
             .strip_prefix(PAIRING_PREFIX)
+            .or_else(|| s.strip_prefix(LEGACY_PAIRING_PREFIX))
             .ok_or_else(|| anyhow!("not a pairing code (it starts with \"{PAIRING_PREFIX}\")"))?;
         let bytes = URL_SAFE_NO_PAD.decode(body.trim()).context("pairing code is damaged")?;
         let code: PairingCode = serde_json::from_slice(&bytes).context("pairing code is damaged")?;
@@ -315,7 +318,7 @@ impl SyncClient {
             .redirect(reqwest::redirect::Policy::none())
             .timeout(Duration::from_secs(60))
             .connect_timeout(Duration::from_secs(8))
-            .user_agent(concat!("better-librelinkup-sync/", env!("CARGO_PKG_VERSION")))
+            .user_agent(concat!("genius-librelinkup-sync/", env!("CARGO_PKG_VERSION")))
             .build()?;
         Ok(Self { http, base: url.trim_end_matches('/').to_string(), token })
     }
@@ -424,7 +427,9 @@ mod tests {
         let s = c.encode();
         assert!(s.starts_with(PAIRING_PREFIX));
         assert_eq!(PairingCode::decode(&format!("  {s}\n")).unwrap(), c);
-        assert!(PairingCode::decode("bllu1:!!!").is_err());
+        assert!(PairingCode::decode("gllu1:!!!").is_err());
+        let legacy = s.replacen(PAIRING_PREFIX, LEGACY_PAIRING_PREFIX, 1);
+        assert_eq!(PairingCode::decode(&legacy).unwrap(), c);
         assert!(PairingCode::decode(&PairingCode { url: "http://x".into(), ..code() }.encode()).is_err());
         assert!(PairingCode::decode(&PairingCode { fingerprint: "zz".into(), ..code() }.encode()).is_err());
         assert!(PairingCode::decode(&PairingCode { secret: "short".into(), ..code() }.encode()).is_err());

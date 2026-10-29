@@ -42,7 +42,7 @@ fn make_icon(c: &TrayContent, size: u32) -> Option<tray_icon::Icon> {
 /// AppIndicator extension), in which case the window should not hide on close.
 pub fn init(on_action: impl Fn(TrayAction) + Send + Sync + 'static) -> bool {
     let menu = Menu::new();
-    let show = MenuItem::with_id("show", "Show Better LibreLinkUp", true, None);
+    let show = MenuItem::with_id("show", "Show Genius LibreLinkUp", true, None);
     let refresh = MenuItem::with_id("refresh", "Refresh now", true, None);
     let quit = MenuItem::with_id("quit", "Quit", true, None);
     let _ = menu.append_items(&[&show, &refresh, &PredefinedMenuItem::separator(), &quit]);
@@ -54,8 +54,8 @@ pub fn init(on_action: impl Fn(TrayAction) + Send + Sync + 'static) -> bool {
         style: TrayStyle::default(),
     };
     let mut builder = TrayIconBuilder::new()
-        .with_id("better-librelinkup")
-        .with_tooltip("Better LibreLinkUp")
+        .with_id("genius-librelinkup")
+        .with_tooltip("Genius LibreLinkUp")
         .with_menu(Box::new(menu))
         .with_menu_on_left_click(false);
     if let Some(icon) = make_icon(&placeholder, trayicon::tray_size()) {
