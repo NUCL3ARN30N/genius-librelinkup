@@ -21,7 +21,7 @@ jobs:
   windows:
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
       - run: cargo test --workspace --exclude gllu-server
@@ -34,7 +34,7 @@ jobs:
           New-Item -ItemType Directory -Force out | Out-Null
           Copy-Item target\installer\*.exe out\
           Copy-Item target\release\genius-librelinkup.exe "out\genius-librelinkup-$version-windows-x64.exe"
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: windows
           path: out/*
@@ -43,7 +43,7 @@ jobs:
     # 22.04 keeps the glibc requirement low (Debian 12, Ubuntu 22.04 and newer)
     runs-on: ubuntu-22.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
       - name: System libraries for Slint
@@ -58,7 +58,7 @@ jobs:
           mkdir -p out
           cp target/debian/*.deb out/
           cp target/release/gllu-server "out/gllu-server-$version-linux-x64"
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: linux
           path: out/*
@@ -70,7 +70,7 @@ jobs:
       contents: read
       packages: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: docker/setup-buildx-action@v3
       - uses: docker/login-action@v3
         with:
@@ -98,7 +98,7 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           path: assets
           merge-multiple: true
