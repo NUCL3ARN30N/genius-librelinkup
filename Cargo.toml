@@ -1,6 +1,6 @@
 [package]
 name = "better-librelinkup"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2024"
 description = "Desktop tray monitor for FreeStyle Libre glucose data via LibreLinkUp (unofficial)"
 license = "MIT"

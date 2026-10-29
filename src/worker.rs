@@ -145,6 +145,14 @@ pub async fn run(
     if demo {
         w.start_demo();
     } else {
+        // re-apply on every start: the entry may have been removed (uninstaller, cleanup tools)
+        // or point to an old exe path after the app was moved (not for dev builds from target/)
+        if w.s.autostart
+            && !cfg!(debug_assertions)
+            && let Err(e) = platform::set_autostart(true)
+        {
+            tracing::warn!("could not register autostart: {e:#}");
+        }
         w.init_store().await;
         w.auto_login().await;
     }

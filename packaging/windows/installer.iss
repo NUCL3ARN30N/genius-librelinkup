@@ -1,8 +1,8 @@
 ; Inno Setup script – builds a per-user installer (no admin rights needed).
-; iscc /DAppVersion=0.1.0 packaging\windows\installer.iss
+; iscc /DAppVersion=0.1.1 packaging\windows\installer.iss
 
 #ifndef AppVersion
-  #define AppVersion "0.1.0"
+  #define AppVersion "0.1.1"
 #endif
 
 [Setup]
