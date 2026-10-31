@@ -1,6 +1,6 @@
 [package]
 name = "genius-librelinkup"
-version = "0.2.0"
+version = "1.0.0"
 edition = "2024"
 description = "Desktop tray monitor for FreeStyle Libre glucose data via LibreLinkUp (unofficial)"
 license = "GPL-3.0-only"

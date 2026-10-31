@@ -1,6 +1,6 @@
 [package]
 name = "gllu-server"
-version = "0.2.0"
+version = "1.0.0"
 edition = "2024"
 description = "Always-on caching server for Genius LibreLinkUp: polls LibreLinkUp and serves the history to paired desktop apps"
 license = "GPL-3.0-only"

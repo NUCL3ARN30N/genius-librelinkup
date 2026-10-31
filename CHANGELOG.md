@@ -3,6 +3,10 @@
 The app shows the entry of its own version under **About**. Release notes on GitHub are taken
 from here as well.
 
+## [1.0.0] – 2026-10-31
+
+First stable release. Includes everything from 0.2.0 below.
+
 ## [0.2.0] – 2026-10-29
 
 ### Added

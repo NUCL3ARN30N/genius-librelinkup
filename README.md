@@ -164,7 +164,7 @@ cargo deb                        # target/debian/genius-librelinkup_*.deb
 **Windows installer** – [Inno Setup 6](https://jrsoftware.org/isinfo.php):
 
 ```powershell
-iscc /DAppVersion=0.2.0 packaging\windows\installer.iss   # target/installer/*.exe
+iscc /DAppVersion=1.0.0 packaging\windows\installer.iss   # target/installer/*.exe
 ```
 
 GitHub Actions (`.github/workflows/build.yml`) builds everything. A `v*` tag publishes a release
