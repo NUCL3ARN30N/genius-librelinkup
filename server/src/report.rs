@@ -682,6 +682,13 @@ mod tests {
     }
 
     #[test]
+    fn german_bodies() {
+        let (text, html) = i18n::with_language(Lang::De, || bodies(&summary(), true));
+        assert!(text.contains("Glukosebericht für Demo <Patient>") && text.contains("Zeit im Zielbereich"), "{text}");
+        assert!(text.contains("GMI (ungefährer HbA1c): 6,3 %") && html.contains("Unterzuckerphasen"), "{text}");
+    }
+
+    #[test]
     fn mime_with_zip_has_no_values() {
         let from: Mailbox = "reports@example.com".parse().unwrap();
         let to: Vec<Mailbox> = vec!["doc@example.com".parse().unwrap()];
