@@ -9,7 +9,12 @@ fn main() {
     }
     println!("cargo:rerun-if-changed=src/icon.rs");
 
-    let config = slint_build::CompilerConfiguration::new().with_style("material".into());
+    // one catalogue for the UI and the texts made in Rust (gllu_core::i18n), so no context
+    let config = slint_build::CompilerConfiguration::new()
+        .with_style("material".into())
+        .with_bundled_translations("lang")
+        .with_default_translation_context(slint_build::DefaultTranslationContext::None);
+    println!("cargo:rerun-if-changed=lang");
     slint_build::compile_with_config("ui/app.slint", config).expect("Slint build failed");
 
     #[cfg(windows)]

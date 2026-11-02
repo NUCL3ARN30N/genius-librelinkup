@@ -212,6 +212,8 @@ fn run_app(minimized: bool, dev: bool, demo: bool, listener: TcpListener) -> Res
     devlog.set_enabled(settings.dev_mode);
 
     let ui = AppWindow::new()?;
+    // before the tray is built: its menu is translated too
+    apply_language(&settings.language);
     let (tx, rx) = mpsc::unbounded_channel::<Cmd>();
     wire_callbacks(&ui, &tx, &devlog);
     let about = ui.global::<About>();
@@ -277,6 +279,26 @@ fn run_app(minimized: bool, dev: bool, demo: bool, listener: TcpListener) -> Res
     tray::shutdown();
     rt.shutdown_timeout(Duration::from_secs(2));
     Ok(())
+}
+
+/// The language of a setting ("" = the system's).
+pub fn resolve_language(setting: &str) -> gllu_core::i18n::Lang {
+    use gllu_core::i18n::Lang;
+    match setting {
+        "en" => Lang::En,
+        "de" => Lang::De,
+        _ => sys_locale::get_locale().map(|l| Lang::from_code(&l)).unwrap_or(Lang::En),
+    }
+}
+
+/// Switches the Slint UI and the texts made in Rust; call on the UI thread.
+pub fn apply_language(setting: &str) {
+    let lang = resolve_language(setting);
+    gllu_core::i18n::set_language(lang);
+    let code = if lang == gllu_core::i18n::Lang::De { "de" } else { "" };
+    if let Err(e) = slint::select_bundled_translation(code) {
+        tracing::warn!("could not select the translation {code:?}: {e}");
+    }
 }
 
 fn show_window(weak: &slint::Weak<AppWindow>) {
@@ -378,7 +400,7 @@ fn wire_callbacks(ui: &AppWindow, tx: &mpsc::UnboundedSender<Cmd>, devlog: &devl
     b.on_reset_colors(move || send!(t, Cmd::ResetColors));
     b.on_browse_log_dir(|| {
         rfd::FileDialog::new()
-            .set_title("Choose the glucose log folder")
+            .set_title(gllu_core::tr!("Choose the glucose log folder"))
             .pick_folder()
             .map(|p| p.display().to_string().into())
             .unwrap_or_default()

@@ -8,6 +8,7 @@ use tray_icon::menu::{Menu, MenuEvent, MenuItem, PredefinedMenuItem, Submenu};
 use tray_icon::{MouseButton, MouseButtonState, TrayIcon, TrayIconBuilder, TrayIconEvent};
 
 use crate::config::TrayStyle;
+use gllu_core::tr;
 use crate::trayicon::{self, Rgba};
 
 pub enum TrayAction {
@@ -77,21 +78,21 @@ fn make_icon(kind: Kind, c: &TrayContent, size: u32) -> Option<tray_icon::Icon> 
 /// Each icon gets its own menu with the same entries; the handler is global.
 fn build(kind: Kind, content: &TrayContent, tooltip: &str) -> tray_icon::Result<Slot> {
     let menu = Menu::new();
-    let show = MenuItem::with_id("show", "Show Genius LibreLinkUp", true, None);
-    let refresh = MenuItem::with_id("refresh", "Refresh now", true, None);
+    let show = MenuItem::with_id("show", tr!("Show Genius LibreLinkUp"), true, None);
+    let refresh = MenuItem::with_id("refresh", tr!("Refresh now"), true, None);
     let snooze = Submenu::with_id_and_items(
         "snooze",
-        "Snooze alerts",
+        tr!("Snooze alerts"),
         true,
         &[
-            &MenuItem::with_id("snooze-30", "30 minutes", true, None),
-            &MenuItem::with_id("snooze-60", "1 hour", true, None),
-            &MenuItem::with_id("snooze-120", "2 hours", true, None),
+            &MenuItem::with_id("snooze-30", tr!("30 minutes"), true, None),
+            &MenuItem::with_id("snooze-60", tr!("1 hour"), true, None),
+            &MenuItem::with_id("snooze-120", tr!("2 hours"), true, None),
             &PredefinedMenuItem::separator(),
-            &MenuItem::with_id("snooze-0", "Resume alerts", true, None),
+            &MenuItem::with_id("snooze-0", tr!("Resume alerts"), true, None),
         ],
     );
-    let quit = MenuItem::with_id("quit", "Quit", true, None);
+    let quit = MenuItem::with_id("quit", tr!("Quit"), true, None);
     let mut items: Vec<&dyn tray_icon::menu::IsMenuItem> = vec![&show, &refresh];
     if let Ok(s) = &snooze {
         items.push(s);
@@ -202,6 +203,17 @@ pub fn update(content: TrayContent, tooltip: &str) {
         }
         sync_slot(&mut tray.value, Kind::Value, &value_content, tooltip, true);
         sync_slot(&mut tray.arrow, Kind::Arrow, &content, tooltip, separate);
+    });
+}
+
+/// Drops the icons so the next [`update`] creates them again – with the menus in the language
+/// that is selected now.
+pub fn rebuild() {
+    TRAY.with(|t| {
+        if let Some(tray) = t.borrow_mut().as_mut() {
+            tray.value = None;
+            tray.arrow = None;
+        }
     });
 }
 

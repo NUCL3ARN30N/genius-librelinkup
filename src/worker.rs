@@ -21,7 +21,7 @@ use crate::{
     AppWindow, Dashboard, DevBridge, ExportBridge, LogItem, NoteDraft, Notes, Reports, SettingsBridge, SyncBridge, Theme, Toast, UiAppearance,
     UiSettings, UpdateBridge, mail, platform, secrets, stats, tray, trayicon, ui_model, updater,
 };
-use gllu_core::count;
+use gllu_core::{count, tr};
 use gllu_core::sync::{self, ClientIdentity, PairingCode, PatientInfo, SyncClient, SyncCredentials, SyncError};
 use slint::ComponentHandle;
 
@@ -260,7 +260,7 @@ impl Worker {
     }
 
     fn push_servers(&self) {
-        let mut names: Vec<SharedString> = vec!["Automatic (recommended)".into()];
+        let mut names: Vec<SharedString> = vec![tr!("Automatic (recommended)").into()];
         names.extend(self.servers.iter().map(|s| SharedString::from(format!("{} – {}", s.region.to_uppercase(), s.url))));
         self.ui(move |w| {
             let model: ModelRc<SharedString> = ModelRc::new(VecModel::from(names));
@@ -321,6 +321,11 @@ impl Worker {
                 Some(false) => 1,
                 Some(true) => 2,
             },
+            language: match s.language.as_str() {
+                "en" => 1,
+                "de" => 2,
+                _ => 0,
+            },
             product: s.identity.product.clone().into(),
             version: s.identity.version.clone().into(),
         };
@@ -328,16 +333,16 @@ impl Worker {
         let dev = s.dev_mode;
         let encrypted = self.store.as_ref().is_some_and(|st| st.is_encrypted());
         let info: SharedString = match (&self.store, s.log_enabled, self.store_locked) {
-            (_, false, _) => "Logging is off.".into(),
-            (None, true, true) => "The log is locked.".into(),
-            (None, true, false) => "The log is not loaded in this session.".into(),
-            (Some(st), _, _) => format!(
+            (_, false, _) => tr!("Logging is off.").into(),
+            (None, true, true) => tr!("The log is locked.").into(),
+            (None, true, false) => tr!("The log is not loaded in this session.").into(),
+            (Some(st), _, _) => tr!(
                 "{} and {} since {} in {} · {}",
                 count(st.len(), "reading"),
                 count(st.note_count(), "note"),
-                st.first_time().map(|t| t.with_timezone(&Local).format("%d %b %Y").to_string()).unwrap_or("–".into()),
+                st.first_time().map(|t| gllu_core::i18n::date(t.with_timezone(&Local).format("%d %b %Y"))).unwrap_or("–".into()),
                 st.dir().display(),
-                if st.is_encrypted() { "encrypted (XChaCha20-Poly1305, Argon2id)" } else { "not encrypted" }
+                if st.is_encrypted() { tr!("encrypted (XChaCha20-Poly1305, Argon2id)") } else { tr!("not encrypted") }
             )
             .into(),
         };
@@ -396,15 +401,15 @@ impl Worker {
         let latest = self.patient.as_ref().and_then(|p| p.current).or_else(|| readings.last().copied());
         let notes = self.notes_between(Utc::now() - Duration::hours(hours), Utc::now() + Duration::seconds(1));
         let graph = ui_model::graph(&readings, &notes, u, lo, hi, hours, look.graph_style);
-        let graph_title = format!("Last {hours} hours");
+        let graph_title = tr!("Last {} hours", hours);
 
         let report = stats::build_report(&readings, Utc::now() - Duration::hours(24), Utc::now(), lo, hi, 154.0);
         let stats_items = if report.readings > 0 {
             vec![
-                ui_model::stat("In range", format!("{:.0} %", report.tir.target), ""),
-                ui_model::stat("Below range", format!("{:.0} %", report.tir.low + report.tir.very_low), ""),
-                ui_model::stat("Average", u.fmt_unit(report.mean), ""),
-                ui_model::stat("Variability", format!("{:.0} % CV", report.cv_pct), ""),
+                ui_model::stat(tr!("In range"), format!("{:.0} %", report.tir.target), ""),
+                ui_model::stat(tr!("Below range"), format!("{:.0} %", report.tir.low + report.tir.very_low), ""),
+                ui_model::stat(tr!("Average"), u.fmt_unit(report.mean), ""),
+                ui_model::stat(tr!("Variability"), format!("{:.0} % CV", report.cv_pct), ""),
             ]
         } else {
             vec![]
@@ -417,7 +422,7 @@ impl Worker {
                 (
                     u.fmt_reading(r.mg_dl),
                     arrow.to_string(),
-                    if stale { "Signal lost – no recent reading".to_string() } else { text.to_string() },
+                    if stale { tr!("Signal lost – no recent reading").to_string() } else { gllu_core::i18n::tr(text).to_string() },
                     level(r.mg_dl, lo, hi),
                     ui_model::age_text(r.time),
                     stale,
@@ -431,11 +436,11 @@ impl Worker {
             .map(|p| {
                 let mut parts = Vec::new();
                 if !p.sensor_serial.is_empty() {
-                    parts.push(format!("Sensor {}", p.sensor_serial));
+                    parts.push(tr!("Sensor {}", p.sensor_serial));
                 }
                 if let Some(a) = p.sensor_activated {
                     let day = (Utc::now() - a).num_days() + 1;
-                    parts.push(format!("started {} (day {day})", a.with_timezone(&Local).format("%d %b")));
+                    parts.push(tr!("started {} (day {})", gllu_core::i18n::date(a.with_timezone(&Local).format("%d %b")), day));
                 }
                 parts.join(" · ")
             })
@@ -453,17 +458,17 @@ impl Worker {
                         color,
                         style: look.tray.clone(),
                     },
-                    format!("{} {} {arrow} {text}\n{}", u.fmt_reading(r.mg_dl), u.label(), ui_model::age_text(r.time)),
+                    format!("{} {} {arrow} {}\n{}", u.fmt_reading(r.mg_dl), u.label(), gllu_core::i18n::tr(text), ui_model::age_text(r.time)),
                 )
             }
             None => (
                 tray::TrayContent { text: "-".into(), trend: 0, color: [0x75, 0x75, 0x75, 0xff], style: look.tray.clone() },
-                "Genius LibreLinkUp – no data".into(),
+                tr!("Genius LibreLinkUp – no data").into(),
             ),
         };
 
         let tooltip = match self.alerts.snoozed_until(Utc::now()) {
-            Some(t) => format!("{tooltip}\nAlerts snoozed until {}", t.with_timezone(&Local).format("%H:%M")),
+            Some(t) => format!("{tooltip}\n{}", tr!("Alerts snoozed until {}", t.with_timezone(&Local).format("%H:%M"))),
             None => tooltip,
         };
         let trend_index = latest.filter(|_| !stale).map(|r| r.trend as i32).unwrap_or(0);
@@ -591,9 +596,9 @@ impl Worker {
 
     fn push_report(&self) {
         let unavailable = if !self.s.log_enabled {
-            Some("Turn on the glucose log in Settings to build reports – LibreLinkUp itself only keeps the last 12 hours.")
+            Some(tr!("Turn on the glucose log in Settings to build reports – LibreLinkUp itself only keeps the last 12 hours."))
         } else if self.store.is_none() {
-            Some("The glucose log is locked or not loaded. Unlock it to see reports.")
+            Some(tr!("The glucose log is locked or not loaded. Unlock it to see reports."))
         } else {
             None
         };
@@ -602,7 +607,7 @@ impl Worker {
         let readings = self.readings_between(from, now + Duration::minutes(1));
         let unavailable = unavailable.map(str::to_string).or_else(|| {
             (readings.len() < 12).then(|| {
-                "Not enough data yet. Keep the app running or import a LibreView CSV export (Settings → Import readings).".to_string()
+                tr!("Not enough data yet. Keep the app running or import a LibreView CSV export (Settings → Import readings).").to_string()
             })
         });
         let index = self.report_index as i32;
@@ -703,7 +708,7 @@ impl Worker {
 
     fn store_error(&mut self, e: anyhow::Error) {
         tracing::error!("opening log failed: {e:#}");
-        self.set_status(format!("Log error: {e:#}"), true);
+        self.set_status(tr!("Log error: {}", format!("{e:#}")), true);
     }
 
     async fn open_store(&mut self, passphrase: Option<String>) -> anyhow::Result<()> {
@@ -721,7 +726,7 @@ impl Worker {
     /// optionally the glucose log files. Quits when everything is gone.
     fn wipe_local_data(&mut self, include_log: bool) {
         if self.demo {
-            self.toast("Demo mode stores nothing permanent – there is nothing to delete");
+            self.toast(tr!("Demo mode stores nothing permanent – there is nothing to delete"));
             return;
         }
         self.wiped = true;
@@ -797,7 +802,7 @@ impl Worker {
                 let _ = slint::quit_event_loop();
             });
         } else {
-            self.toast(format!("Some data could not be deleted: {}", failed.join("; ")));
+            self.toast(tr!("Some data could not be deleted: {}", failed.join("; ")));
         }
     }
 
@@ -838,7 +843,7 @@ impl Worker {
     async fn relogin(&mut self) -> Result<(), ApiError> {
         let Some(password) = self.password.clone() else {
             self.logged_in = false;
-            self.push_login_state(Some("Please sign in again.".into()), false);
+            self.push_login_state(Some(tr!("Please sign in again.").into()), false);
             return Err(ApiError::NotLoggedIn);
         };
         let email = self.s.email.clone();
@@ -850,7 +855,7 @@ impl Worker {
             Err(ApiError::BadCredentials) => {
                 self.logged_in = false;
                 self.password = None;
-                self.push_login_state(Some("LibreLinkUp rejected the saved password. Please sign in again.".into()), false);
+                self.push_login_state(Some(tr!("LibreLinkUp rejected the saved password. Please sign in again.").into()), false);
                 Err(ApiError::BadCredentials)
             }
             Err(ApiError::StepRequired(step)) => {
@@ -873,10 +878,9 @@ impl Worker {
     }
 
     fn show_step(&mut self, step: PendingStep, email: String, password: String, remember: bool) {
-        let text = format!(
-            "LibreLinkUp asks you to accept the {} ({}). You can review the document in the official \
-             LibreLinkUp app. Do you accept it so this app can continue?",
-            step.describe(),
+        let text = tr!(
+            "LibreLinkUp asks you to accept {} ({}). You can review the document in the official LibreLinkUp app. Do you accept it so this app can continue?",
+            gllu_core::i18n::tr(step.describe()),
             if step.component.is_empty() { step.kind.clone() } else { format!("{} / {}", step.kind, step.component) }
         );
         self.pending = Some((step, email, password, remember));
@@ -897,7 +901,7 @@ impl Worker {
                 self.save_settings();
                 if remember {
                     if !secrets::store_password(&email, &password) {
-                        self.set_status("Could not save the password in the system keychain", true);
+                        self.set_status(tr!("Could not save the password in the system keychain"), true);
                     }
                 } else {
                     secrets::forget_password(&email);
@@ -946,7 +950,7 @@ impl Worker {
         match result {
             Ok(()) => {
                 self.last_error = None;
-                self.set_status(format!("Updated {}", Local::now().format("%H:%M")), false);
+                self.set_status(tr!("Updated {}", Local::now().format("%H:%M")), false);
                 if self.backfill_due() {
                     // fill gaps from while this computer was off
                     self.run_sync(false).await;
@@ -954,7 +958,7 @@ impl Worker {
             }
             Err(ApiError::RateLimited(secs)) => {
                 self.schedule_poll(secs.max(self.s.poll_seconds as u64));
-                self.set_status(format!("LibreLinkUp rate limit – next try in {secs} s"), true);
+                self.set_status(tr!("LibreLinkUp rate limit – next try in {} s", secs), true);
             }
             Err(ApiError::NotLoggedIn) => {}
             Err(e) => {
@@ -993,7 +997,7 @@ impl Worker {
         }
         if self.s.patient_id.is_empty() {
             return Err(ApiError::Protocol(
-                "No LibreLinkUp connection found. Accept a sharing invitation in the LibreLinkUp app first.".into(),
+                tr!("No LibreLinkUp connection found. Accept a sharing invitation in the LibreLinkUp app first.").into(),
             ));
         }
         let graph = self.client.graph(&self.s.patient_id.clone()).await?;
@@ -1042,29 +1046,29 @@ impl Worker {
         let Some(r) = recent.last().copied() else { return };
         let u = self.units();
         let (arrow, _) = trend_arrow(r.trend);
-        let measured = format!("Measured {}.", ui_model::age_text(r.time));
-        let rate = alert.slope.map(|s| format!(" Changing by {} per minute.", u.fmt_rate(s))).unwrap_or_default();
+        let measured = tr!("Measured {}.", ui_model::age_text(r.time));
+        let rate = alert.slope.map(|s| format!(" {}", tr!("Changing by {} per minute.", u.fmt_rate(s)))).unwrap_or_default();
         let value = u.fmt_unit(r.mg_dl);
         let (title, body, urgent) = match alert.kind {
             AlertKind::Stale => (
-                "No new glucose data".to_string(),
-                format!("Last reading {value} at {}.", r.time.with_timezone(&Local).format("%H:%M")),
+                tr!("No new glucose data").to_string(),
+                tr!("Last reading {} at {}.", value, r.time.with_timezone(&Local).format("%H:%M")),
                 false,
             ),
-            AlertKind::UrgentLow => (format!("Urgent low: {value} {arrow}"), measured, true),
-            AlertKind::Low => (format!("Low glucose: {value} {arrow}"), measured, true),
+            AlertKind::UrgentLow => (tr!("Urgent low: {} {}", value, arrow), measured, true),
+            AlertKind::Low => (tr!("Low glucose: {} {}", value, arrow), measured, true),
             AlertKind::PredictedLow => (
-                format!("Low expected: {value} {arrow}"),
-                format!(
-                    "At this rate about {} in {} minutes.{rate}",
+                tr!("Low expected: {} {}", value, arrow),
+                tr!(
+                    "At this rate about {} in {} minutes.",
                     u.fmt_unit(alert.predicted.unwrap_or(r.mg_dl).max(40.0)),
                     self.s.predict_minutes
-                ),
+                ) + &rate,
                 true,
             ),
-            AlertKind::FallingFast => (format!("Falling fast: {value} {arrow}"), format!("{measured}{rate}"), false),
-            AlertKind::High => (format!("High glucose: {value} {arrow}"), measured, false),
-            AlertKind::RisingFast => (format!("Rising fast: {value} {arrow}"), format!("{measured}{rate}"), false),
+            AlertKind::FallingFast => (tr!("Falling fast: {} {}", value, arrow), format!("{measured}{rate}"), false),
+            AlertKind::High => (tr!("High glucose: {} {}", value, arrow), measured, false),
+            AlertKind::RisingFast => (tr!("Rising fast: {} {}", value, arrow), format!("{measured}{rate}"), false),
         };
         if alert.kind == AlertKind::UrgentLow {
             // snoozing never mutes urgent lows, so no snooze button
@@ -1111,7 +1115,7 @@ impl Worker {
                     match self.client.accept_step(&step).await {
                         Ok(()) => self.do_login(email, password, remember).await,
                         Err(e) => {
-                            self.push_login_state(Some(format!("Accepting failed: {e}")), false);
+                            self.push_login_state(Some(tr!("Accepting failed: {}", e)), false);
                         }
                     }
                     self.push_devlog();
@@ -1122,7 +1126,7 @@ impl Worker {
                 self.logged_in = false;
                 self.ui(|w| w.set_step_text(SharedString::default()));
                 self.push_login_state(
-                    Some("Accept the updated documents in the official LibreLinkUp app, then sign in again.".into()),
+                    Some(tr!("Accept the updated documents in the official LibreLinkUp app, then sign in again.").into()),
                     false,
                 );
             }
@@ -1149,7 +1153,7 @@ impl Worker {
                             self.run_sync(live).await;
                         }
                         if new {
-                            self.settings_message("Glucose log created");
+                            self.settings_message(tr!("Glucose log created"));
                         }
                     }
                     Err(e) => self.push_store_lock(Some(format!("{e:#}")), false),
@@ -1182,48 +1186,48 @@ impl Worker {
             Cmd::SaveSettings(ui) => {
                 let new = self.settings_from_ui(&ui);
                 self.apply_settings(new).await;
-                self.settings_message("Saved");
+                self.settings_message(tr!("Saved"));
             }
             Cmd::SetPassphrase(current, p) => {
                 let remember = self.s.remember_passphrase;
                 let result = match &mut self.store {
                     Some(st) => tokio::task::block_in_place(|| {
-                        st.verify_passphrase(&current).map_err(|_| anyhow::anyhow!("the current passphrase is wrong"))?;
+                        st.verify_passphrase(&current).map_err(|_| anyhow::anyhow!(tr!("the current passphrase is wrong")))?;
                         st.rekey(Some(&p))
                     }),
-                    None => Err(anyhow::anyhow!("unlock or enable the log first")),
+                    None => Err(anyhow::anyhow!(tr!("unlock or enable the log first"))),
                 };
                 match result {
                     Ok(()) => {
                         if remember {
                             secrets::store_passphrase(&p);
                         }
-                        self.settings_message("Log encrypted with the new passphrase");
+                        self.settings_message(tr!("Log encrypted with the new passphrase"));
                     }
-                    Err(e) => self.settings_message(format!("Failed: {e:#}")),
+                    Err(e) => self.settings_message(tr!("Failed: {}", format!("{e:#}"))),
                 }
                 self.push_settings();
             }
             Cmd::RemovePassphrase(current) => {
                 let result = match &mut self.store {
                     Some(st) => tokio::task::block_in_place(|| {
-                        st.verify_passphrase(&current).map_err(|_| anyhow::anyhow!("the current passphrase is wrong"))?;
+                        st.verify_passphrase(&current).map_err(|_| anyhow::anyhow!(tr!("the current passphrase is wrong")))?;
                         st.rekey(None)
                     }),
-                    None => Err(anyhow::anyhow!("log not loaded")),
+                    None => Err(anyhow::anyhow!(tr!("log not loaded"))),
                 };
                 match result {
                     Ok(()) => {
                         secrets::forget_passphrase();
-                        self.settings_message("Encryption removed");
+                        self.settings_message(tr!("Encryption removed"));
                     }
-                    Err(e) => self.settings_message(format!("Failed: {e:#}")),
+                    Err(e) => self.settings_message(tr!("Failed: {}", format!("{e:#}"))),
                 }
                 self.push_settings();
             }
             Cmd::ExportSettings(path) => match self.s.exportable().save_to(&path) {
-                Ok(()) => self.settings_message(format!("Settings exported to {}", path.display())),
-                Err(e) => self.settings_message(format!("Export failed: {e:#}")),
+                Ok(()) => self.settings_message(tr!("Settings exported to {}", path.display())),
+                Err(e) => self.settings_message(tr!("Export failed: {}", format!("{e:#}"))),
             },
             Cmd::ImportSettings(path) => match Settings::load_from(&path) {
                 Ok(mut imported) => {
@@ -1233,44 +1237,44 @@ impl Worker {
                     imported.resolved_server = self.s.resolved_server.clone();
                     imported.patient_id = self.s.patient_id.clone();
                     self.apply_settings(imported).await;
-                    self.settings_message("Settings imported");
+                    self.settings_message(tr!("Settings imported"));
                 }
-                Err(e) => self.settings_message(format!("Import failed: {e:#}")),
+                Err(e) => self.settings_message(tr!("Import failed: {}", format!("{e:#}"))),
             },
             Cmd::ExportCsv(path, all) => {
                 let range = self.export_range(all);
                 let res = match &self.store {
                     Some(st) => st.export_csv(&path, range),
-                    None => Err(anyhow::anyhow!("the log is not loaded")),
+                    None => Err(anyhow::anyhow!(tr!("the log is not loaded"))),
                 };
                 match res {
                     Ok((readings, notes)) => {
-                        self.settings_message(format!("Exported {} and {}", count(readings, "reading"), count(notes, "note")))
+                        self.settings_message(tr!("Exported {} and {}", count(readings, "reading"), count(notes, "note")))
                     }
-                    Err(e) => self.settings_message(format!("Export failed: {e:#}")),
+                    Err(e) => self.settings_message(tr!("Export failed: {}", format!("{e:#}"))),
                 }
             }
             Cmd::ExportPdf(path, all) => {
                 let res = self.pdf(all).and_then(|pdf| Ok(std::fs::write(&path, pdf)?));
                 match res {
-                    Ok(()) => self.settings_message(format!("Report saved to {}", path.display())),
-                    Err(e) => self.settings_message(format!("Export failed: {e:#}")),
+                    Ok(()) => self.settings_message(tr!("Report saved to {}", path.display())),
+                    Err(e) => self.settings_message(tr!("Export failed: {}", format!("{e:#}"))),
                 }
             }
             Cmd::SendExport { all, csv, pdf, to, password, repeat } => self.send_export(all, csv, pdf, to, &password, &repeat),
             Cmd::ImportCsv(path) => {
                 let res = match &mut self.store {
                     Some(st) => st.import_csv(&path),
-                    None => Err(anyhow::anyhow!("enable and unlock the log first")),
+                    None => Err(anyhow::anyhow!(tr!("enable and unlock the log first"))),
                 };
                 match res {
                     Ok(n) => {
-                        self.settings_message(format!("Imported {} and {}", count(n.readings, "new reading"), count(n.notes, "note")));
+                        self.settings_message(tr!("Imported {} and {}", count(n.readings, "new reading"), count(n.notes, "note")));
                         self.push_report();
                         self.push_dashboard();
                         self.push_settings();
                     }
-                    Err(e) => self.settings_message(format!("Import failed: {e:#}")),
+                    Err(e) => self.settings_message(tr!("Import failed: {}", format!("{e:#}"))),
                 }
             }
             Cmd::OpenDataFolder => platform::open_path(&self.s.log_dir()),
@@ -1297,7 +1301,7 @@ impl Worker {
                 if let Some(r) = self.update.take() {
                     self.s.updates.skipped = r.version().to_string();
                     self.save_settings();
-                    self.toast(format!("Version {} will not be offered again", r.version()));
+                    self.toast(tr!("Version {} will not be offered again", r.version()));
                 }
                 self.push_update_state("", false, -1.0);
             }
@@ -1312,14 +1316,14 @@ impl Worker {
             Cmd::OpenDay(key) => self.open_day(key, false),
             Cmd::SaveNote(draft) => {
                 let result = self.save_note(&draft);
-                self.note_done(result, if draft.id.is_empty() { "Note added" } else { "Note saved" });
+                self.note_done(result, if draft.id.is_empty() { tr!("Note added") } else { tr!("Note saved") });
             }
             Cmd::DeleteNote(id) => {
                 let result = match &mut self.store {
                     Some(st) => st.delete_note(&id).and_then(|()| st.flush()),
-                    None => Err(anyhow::anyhow!("the glucose log is not loaded")),
+                    None => Err(anyhow::anyhow!(tr!("the glucose log is not loaded"))),
                 };
-                self.note_done(result, "Note deleted");
+                self.note_done(result, tr!("Note deleted"));
             }
             Cmd::WipeLocalData(include_log) => self.wipe_local_data(include_log),
             Cmd::UpdateOptions(auto) => {
@@ -1331,14 +1335,14 @@ impl Worker {
                 let until = (minutes > 0).then(|| Utc::now() + Duration::minutes(minutes as i64));
                 self.alerts.snooze(until);
                 self.toast(match until {
-                    Some(t) => format!("Alerts snoozed until {} – urgent lows still notify", t.with_timezone(&Local).format("%H:%M")),
-                    None => "Alerts resumed".to_string(),
+                    Some(t) => tr!("Alerts snoozed until {} – urgent lows still notify", t.with_timezone(&Local).format("%H:%M")),
+                    None => tr!("Alerts resumed").to_string(),
                 });
                 self.push_dashboard();
             }
             Cmd::Unpair => {
                 self.unpair(None);
-                self.toast("Unpaired from the caching server");
+                self.toast(tr!("Unpaired from the caching server"));
             }
             Cmd::SyncNow => {
                 let live = self.server_is_source();
@@ -1354,7 +1358,7 @@ impl Worker {
                     }
                     if !on && self.password.is_none() {
                         self.logged_in = false;
-                        self.push_login_state(Some("Sign in to LibreLinkUp to poll from this computer.".into()), false);
+                        self.push_login_state(Some(tr!("Sign in to LibreLinkUp to poll from this computer.").into()), false);
                     }
                     self.schedule_poll(1);
                 }
@@ -1365,13 +1369,13 @@ impl Worker {
 
     fn save_note(&mut self, d: &NoteDraft) -> anyhow::Result<()> {
         let time = ui_model::parse_note_time(&d.when)
-            .ok_or_else(|| anyhow::anyhow!("enter the time as YYYY-MM-DD HH:MM, or HH:MM for today"))?;
+            .ok_or_else(|| anyhow::anyhow!(tr!("enter the time as YYYY-MM-DD HH:MM, or HH:MM for today")))?;
         if time > Utc::now() + Duration::days(1) {
-            anyhow::bail!("the time is more than a day in the future");
+            anyhow::bail!(tr!("the time is more than a day in the future"));
         }
         let treatment = ui_model::treatment_from_ui(d.treatment, &d.treatment_name, &d.units)?;
         let carbs = ui_model::carbs_from_ui(&d.carbs)?;
-        let st = self.store.as_mut().ok_or_else(|| anyhow::anyhow!("the glucose log is not loaded"))?;
+        let st = self.store.as_mut().ok_or_else(|| anyhow::anyhow!(tr!("the glucose log is not loaded")))?;
         if d.id.is_empty() {
             st.add_note(time, &d.text, treatment, carbs)?;
         } else {
@@ -1405,26 +1409,26 @@ impl Worker {
 
     /// The PDF report of the export range.
     fn pdf(&self, all: bool) -> anyhow::Result<Vec<u8>> {
-        let st = self.store.as_ref().ok_or_else(|| anyhow::anyhow!("the glucose log is not loaded"))?;
+        let st = self.store.as_ref().ok_or_else(|| anyhow::anyhow!(tr!("the glucose log is not loaded")))?;
         let now = Utc::now();
         let from = if all { st.first_time().unwrap_or(now) } else { self.report_from() };
         let readings = self.readings_between(from, now + Duration::minutes(1));
         if readings.is_empty() {
-            anyhow::bail!("there are no readings in this period");
+            anyhow::bail!(tr!("there are no readings in this period"));
         }
         let report = stats::build_report(&readings, from, now, self.s.target_low, self.s.target_high, 154.0);
         let notes = self.notes_between(from, now + Duration::minutes(1));
         let totals = stats::daily_totals(&notes, from, now);
-        let date = |t: DateTime<Utc>| t.with_timezone(&Local).format("%d %b %Y").to_string();
+        let date = |t: DateTime<Utc>| gllu_core::i18n::date(t.with_timezone(&Local).format("%d %b %Y"));
         let opts = gllu_core::report_pdf::PdfOptions {
-            title: "Glucose report".into(),
+            title: tr!("Glucose report").into(),
             patient: self.patient.as_ref().map(|p| format!("{} {}", p.first_name, p.last_name).trim().to_string()).unwrap_or_default(),
             period: format!("{} – {}", date(from), date(now)),
             generated: Local::now().format("%Y-%m-%d %H:%M").to_string(),
             mmol: !self.units().mg_dl,
             target_low: self.s.target_low,
             target_high: self.s.target_high,
-            lang: "en".into(),
+            lang: gllu_core::i18n::language().code().into(),
         };
         gllu_core::report_pdf::render(&report, &notes, &totals, &opts)
     }
@@ -1434,10 +1438,10 @@ impl Worker {
         self.ui(|w| w.global::<ExportBridge>().set_busy(true));
         let result = (|| -> anyhow::Result<mail::Draft> {
             gllu_core::export::check_password(password, repeat)?;
-            let st = self.store.as_ref().ok_or_else(|| anyhow::anyhow!("the glucose log is not loaded"))?;
+            let st = self.store.as_ref().ok_or_else(|| anyhow::anyhow!(tr!("the glucose log is not loaded")))?;
             let (csv, readings, notes) = st.csv(self.export_range(all))?;
             if readings == 0 && notes == 0 {
-                anyhow::bail!("there is no data in this period");
+                anyhow::bail!(tr!("there is no data in this period"));
             }
             let (from, to_date) = self.export_dates(all);
             let stem = format!("glucose-{from}_{to_date}");
@@ -1456,11 +1460,11 @@ impl Worker {
             gllu_core::export::write_encrypted_zip(&path, &entries, password)?;
             Ok(mail::Draft {
                 to,
-                subject: format!("Glucose data {from} – {to_date}"),
-                body: format!(
-                    "Hello,\n\nattached are my glucose data from {from} to {to_date} ({} and {}) as an encrypted ZIP file. \
-                     I will send you the password separately.\n\nThe file opens with 7-Zip, WinRAR or Keka.\n\n\
-                     Created with Genius LibreLinkUp (not a medical device).\n",
+                subject: tr!("Glucose data {} – {}", from, to_date),
+                body: tr!(
+                    "Hello,\n\nattached are my glucose data from {} to {} ({} and {}) as an encrypted ZIP file. I will send you the password separately.\n\nThe file opens with 7-Zip, WinRAR or Keka.\n\nCreated with Genius LibreLinkUp (not a medical device).\n",
+                    from,
+                    to_date,
                     count(readings, "reading"),
                     count(notes, "note"),
                 ),
@@ -1478,9 +1482,9 @@ impl Worker {
                 // blocks on Windows while the mail dialog is open
                 std::thread::spawn(move || {
                     let msg = match mail::compose(&draft) {
-                        mail::Outcome::Opened => "Email created – tell the recipient the password another way",
-                        mail::Outcome::Cancelled => "The email was cancelled",
-                        mail::Outcome::Manual => "No mail program took the file – attach the ZIP by hand",
+                        mail::Outcome::Opened => tr!("Email created – tell the recipient the password another way"),
+                        mail::Outcome::Cancelled => tr!("The email was cancelled"),
+                        mail::Outcome::Manual => tr!("No mail program took the file – attach the ZIP by hand"),
                     };
                     let _ = ui.upgrade_in_event_loop(move |w| w.global::<Toast>().set_message(msg.into()));
                 });
@@ -1560,6 +1564,11 @@ impl Worker {
             2 => Some(true),
             _ => None,
         };
+        s.language = match ui.language {
+            1 => "en".into(),
+            2 => "de".into(),
+            _ => String::new(),
+        };
         s.identity.product = ui.product.trim().to_string();
         s.identity.version = ui.version.trim().to_string();
         s.sanitize();
@@ -1573,7 +1582,7 @@ impl Worker {
 
         if s.autostart != old.autostart && !self.demo {
             if let Err(e) = platform::set_autostart(s.autostart) {
-                self.settings_message(format!("Autostart: {e:#}"));
+                self.settings_message(tr!("Autostart: {}", format!("{e:#}")));
             } else if s.autostart {
                 platform::clear_autostart_disabled();
             }
@@ -1590,7 +1599,22 @@ impl Worker {
         };
         self.client.set_server(&server);
         let log_changed = s.log_enabled != old.log_enabled || s.log_dir() != old.log_dir();
-        let poll_changed = s.poll_seconds != old.poll_seconds;
+        let language_changed = s.language != old.language;
+        if language_changed {
+            // texts made here follow at once; the UI thread switches Slint and rebuilds the tray
+            gllu_core::i18n::set_language(crate::resolve_language(&s.language));
+            let lang = s.language.clone();
+            self.ui(move |_| {
+                crate::apply_language(&lang);
+                tray::rebuild();
+            });
+            self.push_servers();
+            self.push_update_state("", false, -1.0);
+        }
+        let poll_changed = self.s.poll_seconds != old.poll_seconds;
+        if language_changed && self.demo {
+            self.set_status(tr!("Demo mode – synthetic data"), false);
+        }
         self.save_settings();
         if log_changed {
             self.init_store().await;
@@ -1646,7 +1670,7 @@ impl Worker {
         self.push_settings();
         self.push_dashboard();
         self.push_report();
-        self.set_status("Demo mode – synthetic data", false);
+        self.set_status(tr!("Demo mode – synthetic data"), false);
     }
 
     fn demo_tick(&mut self) {
@@ -1842,41 +1866,41 @@ impl Worker {
 
     async fn check_updates(&mut self, manual: bool) {
         self.update_checked = Some(Instant::now());
-        self.push_update_state("Checking for updates…", true, -1.0);
+        self.push_update_state(tr!("Checking for updates…"), true, -1.0);
         match updater::latest().await {
             Ok(Some(release)) => {
                 let version = release.version().to_string();
                 let newer = updater::is_newer(&version, updater::CURRENT);
                 let skipped = !manual && self.s.updates.skipped == version;
                 self.update = (newer && !skipped).then_some(release);
-                let checked = format!("checked {}", Local::now().format("%H:%M"));
+                let checked = tr!("checked {}", Local::now().format("%H:%M"));
                 if self.update.is_some() {
                     self.push_update_state(&checked, false, -1.0);
                     if self.notified_update != version {
                         self.notified_update = version.clone();
                         alerts::show(
-                            "Update available",
-                            &format!("Genius LibreLinkUp {version} is available – open Settings → Updates."),
+                            tr!("Update available"),
+                            &tr!("Genius LibreLinkUp {} is available – open Settings → Updates.", version),
                             false,
                         );
                     }
                     if manual {
-                        self.toast(format!("Version {version} is available"));
+                        self.toast(tr!("Version {} is available", version));
                     }
                 } else {
-                    self.push_update_state(&format!("You have the latest version ({checked})"), false, -1.0);
+                    self.push_update_state(&tr!("You have the latest version ({})", checked), false, -1.0);
                     if manual {
-                        self.toast("Genius LibreLinkUp is up to date");
+                        self.toast(tr!("Genius LibreLinkUp is up to date"));
                     }
                 }
             }
             Ok(None) => {
                 self.update = None;
-                self.push_update_state("No release has been published yet", false, -1.0);
+                self.push_update_state(tr!("No release has been published yet"), false, -1.0);
             }
             Err(e) => {
                 tracing::warn!("update check failed: {e:#}");
-                self.push_update_state(&format!("Update check failed: {e:#}"), false, -1.0);
+                self.push_update_state(&tr!("Update check failed: {}", format!("{e:#}")), false, -1.0);
             }
         }
     }
@@ -1885,10 +1909,10 @@ impl Worker {
         let Some(release) = self.update.clone() else { return };
         let kind = updater::install_kind();
         let Some(asset) = updater::pick_asset(&release, kind).cloned() else {
-            self.push_update_state("This release has no package for this kind of installation", false, -1.0);
+            self.push_update_state(tr!("This release has no package for this kind of installation"), false, -1.0);
             return;
         };
-        self.push_update_state(&format!("Downloading {}…", asset.name), true, 0.0);
+        self.push_update_state(&tr!("Downloading {}…", asset.name), true, 0.0);
         let ui = self.ui.clone();
         let last = std::sync::atomic::AtomicU32::new(0);
         let progress = move |p: f32| {
@@ -1901,22 +1925,22 @@ impl Worker {
         let file = match updater::download(&release, &asset, progress).await {
             Ok(f) => f,
             Err(e) => {
-                self.push_update_state(&format!("Download failed: {e:#}"), false, -1.0);
+                self.push_update_state(&tr!("Download failed: {}", format!("{e:#}")), false, -1.0);
                 return;
             }
         };
-        self.push_update_state("Installing…", true, -1.0);
+        self.push_update_state(tr!("Installing…"), true, -1.0);
         self.flush_store();
         match tokio::task::spawn_blocking(move || updater::install(kind, &file)).await {
             Ok(Ok(true)) => {
-                self.toast(format!("Restarting into version {}…", release.version()));
+                self.toast(tr!("Restarting into version {}…", release.version()));
                 let _ = slint::invoke_from_event_loop(|| {
                     let _ = slint::quit_event_loop();
                 });
             }
-            Ok(Ok(false)) => self.push_update_state("Installed – restart the app to use the new version", false, -1.0),
-            Ok(Err(e)) => self.push_update_state(&format!("Installation failed: {e:#}"), false, -1.0),
-            Err(e) => self.push_update_state(&format!("Installation failed: {e}"), false, -1.0),
+            Ok(Ok(false)) => self.push_update_state(tr!("Installed – restart the app to use the new version"), false, -1.0),
+            Ok(Err(e)) => self.push_update_state(&tr!("Installation failed: {}", format!("{e:#}")), false, -1.0),
+            Err(e) => self.push_update_state(&tr!("Installation failed: {}", e), false, -1.0),
         }
     }
 }
@@ -1948,12 +1972,12 @@ impl Worker {
         let server = if paired {
             format!(
                 "{} · {} · {}",
-                if s.server_name.is_empty() { "Caching server" } else { &s.server_name },
+                if s.server_name.is_empty() { tr!("Caching server") } else { &s.server_name },
                 s.url,
                 if s.fingerprint.is_empty() {
-                    "public certificate".to_string()
+                    tr!("public certificate").to_string()
                 } else {
-                    format!("certificate {}", sync::short_fingerprint(&s.fingerprint))
+                    tr!("certificate {}", sync::short_fingerprint(&s.fingerprint))
                 }
             )
         } else {
@@ -1975,7 +1999,7 @@ impl Worker {
     async fn sync_client(&mut self) -> Result<SyncClient, String> {
         let s = self.s.sync.clone();
         let Some(mut creds) = secrets::sync_credentials() else {
-            self.unpair(Some("The pairing keys are missing from the system keychain – pair again.".into()));
+            self.unpair(Some(tr!("The pairing keys are missing from the system keychain – pair again.").into()));
             return Err("not paired".into());
         };
         let client = SyncClient::new(&s.url, &s.fingerprint, Some(creds.token.clone()), &creds.identity)
@@ -1988,13 +2012,13 @@ impl Worker {
                 creds.token = token;
                 creds.token_issued = Utc::now().timestamp();
                 if !secrets::store_sync_credentials(&creds) {
-                    return Err("could not store the rotated token in the system keychain".into());
+                    return Err(tr!("could not store the rotated token in the system keychain").into());
                 }
                 tracing::info!("rotated the caching server token");
                 SyncClient::new(&s.url, &s.fingerprint, Some(creds.token), &creds.identity).map_err(|e| format!("{e:#}"))
             }
             Err(SyncError::Unauthorized) => {
-                self.unpair(Some("The server revoked this computer – pair it again.".into()));
+                self.unpair(Some(tr!("The server revoked this computer – pair it again.").into()));
                 Err("pairing revoked".into())
             }
             // keep using the current token, try again next time
@@ -2006,7 +2030,7 @@ impl Worker {
     }
 
     async fn pair_server(&mut self, code: String, use_as_source: bool) {
-        self.push_sync_state("Connecting…", false, true);
+        self.push_sync_state(tr!("Connecting…"), false, true);
         let result: Result<(), String> = async {
             let code = PairingCode::decode(&code).map_err(|e| format!("{e:#}"))?;
             let host = std::env::var("COMPUTERNAME").or_else(|_| std::env::var("HOSTNAME")).unwrap_or_else(|_| "desktop".into());
@@ -2018,7 +2042,7 @@ impl Worker {
             let resp = client.pair(&code.secret, &name).await.map_err(|e| e.to_string())?;
             let creds = SyncCredentials { token: resp.token.clone(), token_issued: Utc::now().timestamp(), identity };
             if !secrets::store_sync_credentials(&creds) {
-                return Err("could not store the pairing keys in the system keychain".into());
+                return Err(tr!("could not store the pairing keys in the system keychain").into());
             }
             self.s.sync = SyncSettings {
                 url: code.url,
@@ -2034,15 +2058,15 @@ impl Worker {
         .await;
         match result {
             Ok(()) => {
-                self.toast(format!("Paired with {}", self.s.sync.server_name));
+                self.toast(tr!("Paired with {}", self.s.sync.server_name));
                 if self.server_is_source() && !self.logged_in {
                     self.logged_in = true;
                     self.push_login_state(None, false);
                 }
-                self.push_sync_state("Paired – fetching history…", false, true);
+                self.push_sync_state(tr!("Paired – fetching history…"), false, true);
                 self.run_sync(true).await;
             }
-            Err(e) => self.push_sync_state(&format!("Pairing failed: {e}"), true, false),
+            Err(e) => self.push_sync_state(&tr!("Pairing failed: {}", e), true, false),
         }
     }
 
@@ -2070,13 +2094,13 @@ impl Worker {
         let patients = match client.patients().await {
             Ok(p) => p,
             Err(SyncError::Unauthorized) => {
-                self.unpair(Some("The server revoked this computer – pair it again.".into()));
+                self.unpair(Some(tr!("The server revoked this computer – pair it again.").into()));
                 return Err("pairing revoked".into());
             }
             Err(e) => return Err(e.to_string()),
         };
         if patients.is_empty() {
-            return Err("the server has no data yet – check LLU_EMAIL / LLU_PASSWORD on the server".into());
+            return Err(tr!("the server has no data yet – check LLU_EMAIL / LLU_PASSWORD on the server").into());
         }
         if !patients.iter().any(|p| p.id == self.s.patient_id) {
             self.s.patient_id = patients[0].id.clone();
@@ -2111,7 +2135,7 @@ impl Worker {
         if let Some(st) = &mut self.store {
             added = st.insert(&readings);
             if added > 0 {
-                st.flush().map_err(|e| format!("writing the log: {e:#}"))?;
+                st.flush().map_err(|e| tr!("writing the log: {}", format!("{e:#}")))?;
             }
         }
         if self.store.is_some() {
@@ -2143,25 +2167,25 @@ impl Worker {
     }
 
     async fn run_sync(&mut self, live: bool) {
-        self.push_sync_state("Syncing…", false, true);
+        self.push_sync_state(tr!("Syncing…"), false, true);
         match self.sync_from_server(live).await {
             Ok(n) => {
-                let msg = format!(
+                let msg = tr!(
                     "Last sync {}{}",
                     Local::now().format("%H:%M"),
-                    if n > 0 { format!(" · {n} readings added to the log") } else { String::new() }
+                    if n > 0 { format!(" · {}", tr!("{} added to the log", count(n, "reading"))) } else { String::new() }
                 );
                 self.push_sync_state(&msg, false, false);
                 if live {
-                    self.set_status(format!("Updated {} via server", Local::now().format("%H:%M")), false);
+                    self.set_status(tr!("Updated {} via server", Local::now().format("%H:%M")), false);
                 }
             }
             Err(e) => {
                 if self.s.sync.paired() {
-                    self.push_sync_state(&format!("Sync failed: {e}"), true, false);
+                    self.push_sync_state(&tr!("Sync failed: {}", e), true, false);
                 }
                 if live {
-                    self.set_status(format!("Server: {e}"), true);
+                    self.set_status(tr!("Server: {}", e), true);
                 }
             }
         }

@@ -10,7 +10,9 @@ use chrono::{Local, NaiveDate, Timelike};
 use pdf_writer::types::{CidFontType, FontFlags, SystemInfo, UnicodeCmap};
 use pdf_writer::{Content, Filter, Finish, Name, Pdf, Rect, Ref, Str, TextStr};
 
+use crate::i18n::{self, Lang};
 use crate::stats::{self, DayTotals, Light, Report};
+use crate::tr;
 use crate::store::{MMOL_FACTOR, Note, fmt_units};
 
 static REGULAR: &[u8] = include_bytes!("../assets/fonts/NotoSans-Regular.ttf");
@@ -202,6 +204,7 @@ impl Doc {
     /// Text with its baseline at `y`.
     #[allow(clippy::too_many_arguments)]
     fn text(&mut self, x: f32, y: f32, size: f32, bold: bool, color: Rgb, align: Align, text: &str) {
+        let text = &i18n::numbers(text);
         let w = self.width(text, size, bold);
         let x = match align {
             Align::Left => x,
@@ -349,6 +352,10 @@ fn light_color(l: Light) -> Rgb {
 /// Builds the PDF. `totals` are the daily insulin & carbs totals of the report period
 /// ([`stats::daily_totals`]); `notes` are listed on the last pages.
 pub fn render(report: &Report, notes: &[Note], totals: &[DayTotals], opts: &PdfOptions) -> Result<Vec<u8>> {
+    i18n::with_language(Lang::from_code(&opts.lang), || render_in_language(report, notes, totals, opts))
+}
+
+fn render_in_language(report: &Report, notes: &[Note], totals: &[DayTotals], opts: &PdfOptions) -> Result<Vec<u8>> {
     let mut doc = Doc { fonts: [Font::new(REGULAR, "NotoSans-Regular")?, Font::new(BOLD, "NotoSans-Bold")?], pages: Vec::new() };
     let f = Fmt { mmol: opts.mmol };
     summary_page(&mut doc, report, totals, opts, &f);
@@ -360,8 +367,8 @@ pub fn render(report: &Report, notes: &[Note], totals: &[DayTotals], opts: &PdfO
         doc.pages.swap(i, count - 1);
         let y = PH - 22.0;
         doc.line(M, y - 12.0, PW - M, y - 12.0, 0.5, GRID);
-        doc.text(M, y, 8.0, false, SOFT, Align::Left, "Genius LibreLinkUp · not a medical device – do not base treatment decisions on this report");
-        doc.text(PW - M, y, 8.0, false, SOFT, Align::Right, &format!("Page {} of {count}", i + 1));
+        doc.text(M, y, 8.0, false, SOFT, Align::Left, tr!("Genius LibreLinkUp · not a medical device – do not base treatment decisions on this report"));
+        doc.text(PW - M, y, 8.0, false, SOFT, Align::Right, &tr!("Page {} of {}", i + 1, count));
         doc.pages.swap(i, count - 1);
     }
     finish(doc, opts)
@@ -397,7 +404,7 @@ fn finish(doc: Doc, opts: &PdfOptions) -> Result<Vec<u8>> {
 fn header(doc: &mut Doc, opts: &PdfOptions, subtitle: &str) -> f32 {
     doc.text(M, 58.0, 20.0, true, INK, Align::Left, &opts.title);
     doc.text(PW - M, 52.0, 9.0, false, SOFT, Align::Right, "Genius LibreLinkUp");
-    doc.text(PW - M, 64.0, 8.0, false, SOFT, Align::Right, &format!("Generated {}", opts.generated));
+    doc.text(PW - M, 64.0, 8.0, false, SOFT, Align::Right, &tr!("Generated {}", opts.generated));
     let mut line = vec![opts.period.clone()];
     if !opts.patient.is_empty() {
         line.insert(0, opts.patient.clone());
@@ -412,19 +419,19 @@ fn header(doc: &mut Doc, opts: &PdfOptions, subtitle: &str) -> f32 {
 
 fn summary_page(doc: &mut Doc, r: &Report, totals: &[DayTotals], opts: &PdfOptions, f: &Fmt) {
     doc.new_page();
-    let mut y = header(doc, opts, &format!("{} days, {} readings", r.days, r.readings));
+    let mut y = header(doc, opts, &format!("{}, {}", crate::count(r.days as usize, "day"), crate::count(r.readings, "reading")));
 
     // glucose statistics (left) and time in ranges (right)
     let (lx, lw) = (M, 245.0);
-    doc.heading(lx, y, "Glucose statistics");
-    let coverage = if r.sensor_active_pct < 70.0 { "less than 70 % – interpret with care" } else { "" };
+    doc.heading(lx, y, tr!("Glucose statistics"));
+    let coverage = if r.sensor_active_pct < 70.0 { tr!("less than 70 % – interpret with care") } else { "" };
     let rows: Vec<(&str, String, &str)> = vec![
-        ("% time CGM is active", format!("{:.1} %", r.sensor_active_pct), coverage),
-        ("Average glucose", f.val(r.mean), ""),
-        ("GMI", format!("{:.1} % · {:.0} mmol/mol", r.gmi_pct, r.gmi_mmol_mol), "glucose management indicator, approximate HbA1c"),
-        ("Estimated HbA1c (eA1c)", format!("{:.1} % · {:.0} mmol/mol", r.ea1c_pct, r.ea1c_mmol_mol), "ADAG formula"),
-        ("Glucose variability (CV)", format!("{:.1} %", r.cv_pct), "goal: 36 % or lower"),
-        ("Standard deviation", f.val(r.sd), ""),
+        (tr!("% time CGM is active"), format!("{:.1} %", r.sensor_active_pct), coverage),
+        (tr!("Average glucose"), f.val(r.mean), ""),
+        (tr!("GMI"), format!("{:.1} % · {:.0} mmol/mol", r.gmi_pct, r.gmi_mmol_mol), tr!("glucose management indicator, approximate HbA1c")),
+        (tr!("Estimated HbA1c (eA1c)"), format!("{:.1} % · {:.0} mmol/mol", r.ea1c_pct, r.ea1c_mmol_mol), tr!("ADAG formula")),
+        (tr!("Glucose variability (CV)"), format!("{:.1} %", r.cv_pct), tr!("goal: 36 % or lower")),
+        (tr!("Standard deviation"), f.val(r.sd), ""),
     ];
     let mut ly = y + 24.0;
     for (label, value, hint) in rows {
@@ -438,14 +445,14 @@ fn summary_page(doc: &mut Doc, r: &Report, totals: &[DayTotals], opts: &PdfOptio
     }
 
     let rx = 315.0;
-    doc.heading(rx, y, "Time in ranges");
+    doc.heading(rx, y, tr!("Time in ranges"));
     let (lo, hi) = (opts.target_low, opts.target_high);
     let tir = [
-        ("Very high", format!("> {}", f.val(stats::VERY_HIGH)), r.tir.very_high, LEVELS[4]),
-        ("High", format!("{} – {}", f.num(hi + 1.0), f.val(stats::VERY_HIGH)), r.tir.high, LEVELS[3]),
-        ("Target range", format!("{} – {}", f.num(lo), f.val(hi)), r.tir.target, LEVELS[2]),
-        ("Low", format!("{} – {}", f.num(stats::VERY_LOW), f.val(f.below(lo))), r.tir.low, LEVELS[1]),
-        ("Very low", format!("< {}", f.val(stats::VERY_LOW)), r.tir.very_low, LEVELS[0]),
+        (tr!("Very high"), format!("> {}", f.val(stats::VERY_HIGH)), r.tir.very_high, LEVELS[4]),
+        (tr!("High"), format!("{} – {}", f.num(hi + 1.0), f.val(stats::VERY_HIGH)), r.tir.high, LEVELS[3]),
+        (tr!("Target range"), format!("{} – {}", f.num(lo), f.val(hi)), r.tir.target, LEVELS[2]),
+        (tr!("Low"), format!("{} – {}", f.num(stats::VERY_LOW), f.val(f.below(lo))), r.tir.low, LEVELS[1]),
+        (tr!("Very low"), format!("< {}", f.val(stats::VERY_LOW)), r.tir.very_low, LEVELS[0]),
     ];
     let (bar_y, bar_h) = (y + 14.0, 190.0);
     let mut by = bar_y;
@@ -466,35 +473,38 @@ fn summary_page(doc: &mut Doc, r: &Report, totals: &[DayTotals], opts: &PdfOptio
         doc.text(PW - M, ty + 12.0, 8.0, false, SOFT, Align::Right, &stats::share_of_day(*pct));
     }
     y = ly.max(bar_y + bar_h) + 8.0;
-    y = doc.paragraph(M, y, PW - 2.0 * M, 8.0, SOFT, "Goals for most adults with type 1 or type 2 diabetes: target range > 70 %, low < 4 %, very low < 1 %, high < 25 %, very high < 5 % (international consensus on time in range).");
+    y = doc.paragraph(M, y, PW - 2.0 * M, 8.0, SOFT, tr!("Goals for most adults with type 1 or type 2 diabetes: target range > 70 %, low < 4 %, very low < 1 %, high < 25 %, very high < 5 % (international consensus on time in range)."));
     y += 14.0;
 
     // insulin & carbs
-    doc.heading(M, y, "Insulin & carbs");
+    doc.heading(M, y, tr!("Insulin & carbs"));
     y += 8.0;
     let sum = stats::summarize_totals(totals);
     if sum.days_with_entries == 0 {
-        doc.paragraph(M, y + 14.0, PW - 2.0 * M, 9.0, SOFT, "No insulin or carbs were recorded in the notes of this period.");
+        doc.paragraph(M, y + 14.0, PW - 2.0 * M, 9.0, SOFT, tr!("No insulin or carbs were recorded in the notes of this period."));
         return;
     }
     let mut items: Vec<(String, String)> = Vec::new();
-    let per_day = |v: f32, unit: &str| format!("{} {unit}/day", fmt_units(if v < 10.0 { (v * 10.0).round() / 10.0 } else { v.round() }));
+    let per_day = |v: f32, unit: &str| {
+        let v = fmt_units(if v < 10.0 { (v * 10.0).round() / 10.0 } else { v.round() });
+        if unit == "g" { tr!("{} g/day", v) } else { tr!("{} u/day", v) }
+    };
     if sum.avg_rapid_u > 0.0 {
-        items.push(("Rapid-acting insulin".into(), per_day(sum.avg_rapid_u, "u")));
+        items.push((tr!("Rapid-acting insulin").into(), per_day(sum.avg_rapid_u, "u")));
     }
     if sum.avg_long_u > 0.0 {
-        items.push(("Long-acting insulin".into(), per_day(sum.avg_long_u, "u")));
+        items.push((tr!("Long-acting insulin").into(), per_day(sum.avg_long_u, "u")));
     }
     if sum.avg_rapid_u > 0.0 && sum.avg_long_u > 0.0 {
-        items.push(("Total insulin".into(), per_day(sum.avg_insulin_u(), "u")));
+        items.push((tr!("Total insulin").into(), per_day(sum.avg_insulin_u(), "u")));
     }
     for (name, u) in &sum.avg_custom {
         items.push((name.clone(), per_day(*u, "u")));
     }
     if sum.avg_carbs_g > 0.0 {
-        items.push(("Carbohydrates".into(), per_day(sum.avg_carbs_g.round(), "g")));
+        items.push((tr!("Carbohydrates").into(), per_day(sum.avg_carbs_g.round(), "g")));
     }
-    items.push(("Days with entries".into(), format!("{} of {}", sum.days_with_entries, sum.days)));
+    items.push((tr!("Days with entries").into(), tr!("{} of {}", sum.days_with_entries, sum.days)));
     let mut iy = y + 18.0;
     for (label, value) in &items {
         doc.text(M, iy, 9.5, false, INK, Align::Left, label);
@@ -520,16 +530,16 @@ fn summary_page(doc: &mut Doc, r: &Report, totals: &[DayTotals], opts: &PdfOptio
             doc.rect(x + bar + 0.5, cy + ch - hg, bar, hg, CARBS);
         }
         if i % if totals.len() > 16 { 7 } else { 2 } == 0 {
-            doc.text(cx + slot * (i as f32 + 0.5), cy + ch + 10.0, 7.0, false, SOFT, Align::Center, &d.date.format("%d %b").to_string());
+            doc.text(cx + slot * (i as f32 + 0.5), cy + ch + 10.0, 7.0, false, SOFT, Align::Center, &i18n::date(d.date.format("%d %b")));
         }
     }
     let ly = cy + ch + 24.0;
     doc.rect(cx, ly - 6.5, 7.0, 7.0, INSULIN);
-    doc.text(cx + 10.0, ly, 8.0, false, SOFT, Align::Left, &format!("Insulin (max {} u)", fmt_units(max_u.round())));
-    let lx2 = cx + 20.0 + doc.width(&format!("Insulin (max {} u)", fmt_units(max_u.round())), 8.0, false);
+    doc.text(cx + 10.0, ly, 8.0, false, SOFT, Align::Left, &tr!("Insulin (max {} u)", fmt_units(max_u.round())));
+    let lx2 = cx + 20.0 + doc.width(&tr!("Insulin (max {} u)", fmt_units(max_u.round())), 8.0, false);
     doc.rect(lx2, ly - 6.5, 7.0, 7.0, CARBS);
-    doc.text(lx2 + 10.0, ly, 8.0, false, SOFT, Align::Left, &format!("Carbs (max {} g)", fmt_units(max_g.round())));
-    doc.paragraph(M, iy.max(ly + 18.0), PW - 2.0 * M, 8.0, SOFT, "Averages count only the days with entries. The totals come from the notes and are only as complete as they are.");
+    doc.text(lx2 + 10.0, ly, 8.0, false, SOFT, Align::Left, &tr!("Carbs (max {} g)", fmt_units(max_g.round())));
+    doc.paragraph(M, iy.max(ly + 18.0), PW - 2.0 * M, 8.0, SOFT, tr!("Averages count only the days with entries. The totals come from the notes and are only as complete as they are."));
 }
 
 /// Upper end of a glucose axis in mg/dL on "nice" steps of the shown unit.
@@ -568,8 +578,8 @@ fn glucose_frame(doc: &mut Doc, f: &Fmt, x: f32, y: f32, w: f32, h: f32, ymax: f
 fn agp_page(doc: &mut Doc, r: &Report, opts: &PdfOptions, f: &Fmt) {
     doc.new_page();
     let mut y = header(doc, opts, "");
-    doc.heading(M, y, "Ambulatory glucose profile (AGP)");
-    y = doc.paragraph(M, y + 14.0, PW - 2.0 * M, 8.5, SOFT, "Median (line) with the 25–75 % (dark) and 5–95 % (light) percentiles of all days, as if they happened in a single day.");
+    doc.heading(M, y, tr!("Ambulatory glucose profile (AGP)"));
+    y = doc.paragraph(M, y + 14.0, PW - 2.0 * M, 8.5, SOFT, tr!("Median (line) with the 25–75 % (dark) and 5–95 % (light) percentiles of all days, as if they happened in a single day."));
     let (x, w, h) = (M + 30.0, PW - 2.0 * M - 30.0, 300.0);
     let top = y + 4.0;
     let p95 = r.agp.iter().map(|a| a.p95).fold(0.0, f32::max);
@@ -597,18 +607,18 @@ fn agp_page(doc: &mut Doc, r: &Report, opts: &PdfOptions, f: &Fmt) {
     }
     y = top + h + 40.0;
 
-    doc.heading(M, y, "Glucose pattern insights");
+    doc.heading(M, y, tr!("Glucose pattern insights"));
     y += 22.0;
     let label_w = 140.0;
     let col = (PW - 2.0 * M - label_w) / r.insights.len().max(1) as f32;
     for (i, ins) in r.insights.iter().enumerate() {
-        doc.text(M + label_w + col * (i as f32 + 0.5), y, 8.5, false, SOFT, Align::Center, ins.label);
+        doc.text(M + label_w + col * (i as f32 + 0.5), y, 8.5, false, SOFT, Align::Center, i18n::tr(ins.label));
     }
     type Row = (&'static str, fn(&stats::PeriodInsight) -> Light);
     let rows: [Row; 3] = [
-        ("Likelihood of low", |i| i.low_likelihood),
-        ("Median vs. goal", |i| i.median_vs_goal),
-        ("Variability below median", |i| i.variability_below_median),
+        (tr!("Likelihood of low"), |i| i.low_likelihood),
+        (tr!("Median vs. goal"), |i| i.median_vs_goal),
+        (tr!("Variability below median"), |i| i.variability_below_median),
     ];
     for (ri, (label, get)) in rows.iter().enumerate() {
         let ry = y + 14.0 + ri as f32 * 30.0;
@@ -629,7 +639,7 @@ fn agp_page(doc: &mut Doc, r: &Report, opts: &PdfOptions, f: &Fmt) {
         }
     }
     y += 14.0 + 3.0 * 30.0 + 18.0;
-    doc.paragraph(M, y, PW - 2.0 * M, 8.0, SOFT, "Green: no pattern found, yellow: moderate, red: high. A simplified, informational approximation of LibreView's pattern insights – not medical advice.");
+    doc.paragraph(M, y, PW - 2.0 * M, 8.0, SOFT, tr!("Green: no pattern found, yellow: moderate, red: high. A simplified, informational approximation of LibreView's pattern insights – not medical advice."));
 }
 
 /// Notes of one local day, oldest first.
@@ -648,14 +658,14 @@ fn note_color(n: &Note) -> Rgb {
 fn totals_line(d: &DayTotals) -> String {
     let mut parts = Vec::new();
     if d.rapid_u > 0.0 {
-        parts.push(format!("Rapid {} u", fmt_units(d.rapid_u)));
+        parts.push(tr!("Rapid {} u", fmt_units(d.rapid_u)));
     }
     if d.long_u > 0.0 {
-        parts.push(format!("Long {} u", fmt_units(d.long_u)));
+        parts.push(tr!("Long {} u", fmt_units(d.long_u)));
     }
-    parts.extend(d.custom.iter().map(|(name, u)| format!("{name} {} u", fmt_units(*u))));
+    parts.extend(d.custom.iter().map(|(name, u)| tr!("{} {} u", name, fmt_units(*u))));
     if d.carbs_g > 0.0 {
-        parts.push(format!("Carbs {} g", fmt_units(d.carbs_g.round())));
+        parts.push(tr!("Carbs {} g", fmt_units(d.carbs_g.round())));
     }
     parts.join(" · ")
 }
@@ -673,21 +683,21 @@ fn daily_pages(doc: &mut Doc, r: &Report, notes: &[Note], totals: &[DayTotals], 
         doc.new_page();
         let pages = days.len().div_ceil(7);
         let mut y = header(doc, opts, "");
-        doc.heading(M, y, &if pages > 1 { format!("Daily glucose profiles ({} of {pages})", page + 1) } else { "Daily glucose profiles".to_string() });
+        doc.heading(M, y, &if pages > 1 { tr!("Daily glucose profiles ({} of {})", page + 1, pages) } else { tr!("Daily glucose profiles").to_string() });
         y += 18.0;
         let (x, w, h) = (M + 120.0, PW - 2.0 * M - 120.0, 62.0);
         for d in chunk {
             let top = y;
             // date, share in range
-            doc.text(M, top + 12.0, 10.5, true, INK, Align::Left, &d.date.format("%a %d %b").to_string());
+            doc.text(M, top + 12.0, 10.5, true, INK, Align::Left, &i18n::date(d.date.format("%a %d %b")));
             if d.points.len() > 1 {
                 let in_range = d.points.iter().filter(|(_, v)| (lo..=hi).contains(v)).count() as f32 * 100.0 / d.points.len() as f32;
                 let color = if in_range >= 70.0 { LEVELS[2] } else if in_range >= 50.0 { hex(0xb07800) } else { LEVELS[1] };
-                doc.text(M, top + 26.0, 9.5, true, color, Align::Left, &format!("{in_range:.0} % in range"));
+                doc.text(M, top + 26.0, 9.5, true, color, Align::Left, &tr!("{} % in range", format!("{in_range:.0}")));
                 let mean = d.points.iter().map(|p| p.1).sum::<f32>() / d.points.len() as f32;
-                doc.text(M, top + 38.0, 8.0, false, SOFT, Align::Left, &format!("avg {}", f.val(mean)));
+                doc.text(M, top + 38.0, 8.0, false, SOFT, Align::Left, &tr!("avg {}", f.val(mean)));
             } else {
-                doc.text(M, top + 26.0, 8.5, false, SOFT, Align::Left, "no readings");
+                doc.text(M, top + 26.0, 8.5, false, SOFT, Align::Left, tr!("no readings"));
             }
             let fy = glucose_frame(doc, f, x, top, w, h, ymax, lo, hi, 2);
             for hh in [6, 12, 18] {
@@ -721,7 +731,7 @@ fn daily_pages(doc: &mut Doc, r: &Report, notes: &[Note], totals: &[DayTotals], 
             }
             y += h + 32.0;
         }
-        doc.paragraph(M, y, PW - 2.0 * M, 7.5, SOFT, &format!(
+        doc.paragraph(M, y, PW - 2.0 * M, 7.5, SOFT, &tr!(
             "Fixed scale 0–{} {}. Markers under a day: blue insulin, orange carbs, grey other notes.",
             f.num(ymax),
             f.unit()
@@ -744,14 +754,14 @@ fn notes_pages(doc: &mut Doc, notes: &[Note]) {
         let need = lines.len() as f32 * 12.0 + if new_day { 26.0 } else { 4.0 };
         if y + need > bottom {
             doc.new_page();
-            doc.text(M, 58.0, 20.0, true, INK, Align::Left, "Notes");
+            doc.text(M, 58.0, 20.0, true, INK, Align::Left, tr!("Notes"));
             doc.line(M, 72.0, PW - M, 72.0, 0.8, GRID);
             y = 96.0;
             day = None;
         }
         if day != Some(local.date_naive()) {
             day = Some(local.date_naive());
-            doc.text(M, y, 10.0, true, INK, Align::Left, &local.format("%A, %d %B %Y").to_string());
+            doc.text(M, y, 10.0, true, INK, Align::Left, &i18n::date(local.format("%A, %d %B %Y")));
             y += 16.0;
         }
         doc.circle(M + 3.0, y - 3.0, 2.5, note_color(n));
@@ -775,6 +785,10 @@ mod tests {
     use chrono::{Duration, Utc};
 
     fn demo_pdf(days: i64) -> Vec<u8> {
+        demo_pdf_in(days, "en")
+    }
+
+    fn demo_pdf_in(days: i64, lang: &str) -> Vec<u8> {
         let now = Utc::now();
         let from = now - Duration::days(days);
         let readings = crate::demo::readings(from, now, 900);
@@ -802,7 +816,7 @@ mod tests {
             mmol: true,
             target_low: 70.0,
             target_high: 180.0,
-            lang: "en".into(),
+            lang: lang.into(),
         };
         render(&report, &notes, &totals, &opts).unwrap()
     }
@@ -818,9 +832,14 @@ mod tests {
         assert!(page_count(&long) > pages + 10);
         // the fonts are subset: far smaller than the two embedded files
         assert!(short.len() < 400_000, "{}", short.len());
+        // German: same pages, and the language does not leak out of the render
+        let german = demo_pdf_in(14, "de");
+        assert_eq!(page_count(&german), pages);
+        assert_eq!(i18n::language(), Lang::En);
         if let Ok(dir) = std::env::var("GLLU_PDF_OUT") {
             std::fs::write(std::path::Path::new(&dir).join("report-14.pdf"), &short).unwrap();
             std::fs::write(std::path::Path::new(&dir).join("report-90.pdf"), &long).unwrap();
+            std::fs::write(std::path::Path::new(&dir).join("report-14-de.pdf"), &german).unwrap();
         }
     }
 }

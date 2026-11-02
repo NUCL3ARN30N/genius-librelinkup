@@ -16,6 +16,7 @@ use chrono::{DateTime, Datelike, Local, NaiveDateTime, TimeZone, Utc};
 use serde::{Deserialize, Serialize};
 
 use crate::api::Reading;
+use crate::tr;
 
 // The format constants (magic, check value, AAD prefix) keep the original "Better LibreLinkUp"
 // identifiers so logs written before the rename stay readable.
@@ -102,14 +103,14 @@ impl Treatment {
         let name = if kind == TreatmentKind::Custom { clean_note_text(name) } else { String::new() };
         if kind == TreatmentKind::Custom {
             if name.is_empty() {
-                bail!("enter a name for the custom treatment");
+                bail!(tr!("enter a name for the custom treatment"));
             }
             if name.chars().count() > TREATMENT_NAME_MAX_CHARS {
-                bail!("the treatment name is longer than {TREATMENT_NAME_MAX_CHARS} characters");
+                bail!(tr!("the treatment name is longer than {} characters", TREATMENT_NAME_MAX_CHARS));
             }
         }
         let units = match units {
-            Some(u) if !u.is_finite() || u <= 0.0 || u > 1000.0 => bail!("units must be between 0 and 1000"),
+            Some(u) if !u.is_finite() || u <= 0.0 || u > 1000.0 => bail!(tr!("units must be between 0 and 1000")),
             Some(u) => Some((u * 100.0).round() / 100.0),
             None => None,
         };
@@ -133,11 +134,22 @@ impl Treatment {
         Treatment::new(kind, label, units)
     }
 
-    /// "Rapid-acting insulin: 4.5 u", or the label alone without units.
+    /// The label in the current language (custom names stay as typed).
+    pub fn display_label(&self) -> &str {
+        match self.kind {
+            TreatmentKind::Custom => &self.name,
+            _ => crate::i18n::tr(match self.kind {
+                TreatmentKind::RapidActing => "Rapid-acting insulin",
+                _ => "Long-acting insulin",
+            }),
+        }
+    }
+
+    /// "Rapid-acting insulin: 4.5 u", or the label alone without units (current language).
     pub fn describe(&self) -> String {
         match self.units {
-            Some(u) => format!("{}: {} u", self.label(), fmt_units(u)),
-            None => self.label().to_string(),
+            Some(u) => tr!("{}: {} u", self.display_label(), crate::i18n::numbers(&fmt_units(u))),
+            None => self.display_label().to_string(),
         }
     }
 }
@@ -145,7 +157,7 @@ impl Treatment {
 /// Validates carbohydrates: 0 < g ≤ 1000, rounded to one decimal.
 pub fn check_carbs(grams: Option<f32>) -> Result<Option<f32>> {
     match grams {
-        Some(g) if !g.is_finite() || g <= 0.0 || g > 1000.0 => bail!("carbs must be between 0 and 1000 g"),
+        Some(g) if !g.is_finite() || g <= 0.0 || g > 1000.0 => bail!(tr!("carbs must be between 0 and 1000 g")),
         Some(g) => Ok(Some((g * 10.0).round() / 10.0)),
         None => Ok(None),
     }
@@ -186,7 +198,7 @@ impl Note {
 
     /// Treatment, carbs and text in one line, e.g. "Rapid-acting insulin: 4.5 u · 45 g carbs · Breakfast".
     pub fn summary(&self) -> String {
-        let carbs = self.carbs.map(|g| format!("{} g carbs", fmt_units(g)));
+        let carbs = self.carbs.map(|g| tr!("{} g carbs", crate::i18n::numbers(&fmt_units(g))));
         let parts = [self.treatment.as_ref().map(Treatment::describe), carbs, Some(self.text.clone())];
         parts.into_iter().flatten().filter(|p| !p.is_empty()).collect::<Vec<_>>().join(" · ")
     }
@@ -279,7 +291,7 @@ fn open_sealed(key: &Key, data: &[u8], aad: &[u8]) -> Result<Vec<u8>> {
     let nonce = XNonce::try_from(&data[..24]).map_err(|_| anyhow!("bad nonce"))?;
     XChaCha20Poly1305::new(key.into())
         .decrypt(&nonce, Payload { msg: &data[24..], aad })
-        .map_err(|_| anyhow!("wrong passphrase or corrupted file"))
+        .map_err(|_| anyhow!(tr!("wrong passphrase or corrupted file")))
 }
 
 fn random_bytes<const N: usize>() -> [u8; N] {
@@ -297,11 +309,11 @@ impl Store {
             Ok(text) => {
                 let meta: VaultMeta = serde_json::from_str(&text).context("parsing vault.json")?;
                 if meta.encrypted {
-                    let pass = passphrase.ok_or_else(|| anyhow!("passphrase required"))?;
+                    let pass = passphrase.ok_or_else(|| anyhow!(tr!("passphrase required")))?;
                     let salt = hex::decode(&meta.salt)?;
                     let key = derive_key(pass, &salt, meta.m_cost, meta.t_cost, meta.p_cost)?;
                     open_sealed(&key, &hex::decode(&meta.check)?, b"check")
-                        .map_err(|_| anyhow!("wrong passphrase"))?;
+                        .map_err(|_| anyhow!(tr!("wrong passphrase")))?;
                     Some(key)
                 } else {
                     None
@@ -377,7 +389,7 @@ impl Store {
         let meta: VaultMeta = serde_json::from_str(&std::fs::read_to_string(meta_path(&self.dir))?)?;
         let key = derive_key(passphrase, &hex::decode(&meta.salt)?, meta.m_cost, meta.t_cost, meta.p_cost)?;
         if key != current {
-            bail!("wrong passphrase");
+            bail!(tr!("wrong passphrase"));
         }
         Ok(())
     }
@@ -635,7 +647,7 @@ impl Store {
 
     fn notes_writable(&self) -> Result<()> {
         match &self.notes_error {
-            Some(e) => bail!("the notes file could not be read ({e})"),
+            Some(e) => bail!(tr!("the notes file could not be read ({})", e)),
             None => Ok(()),
         }
     }
@@ -674,7 +686,7 @@ impl Store {
         let text = clean_note_text(text);
         let carbs = check_carbs(carbs)?;
         if text.is_empty() && treatment.is_none() && carbs.is_none() {
-            bail!("the note is empty");
+            bail!(tr!("the note is empty"));
         }
         let id = hex::encode(random_bytes::<8>());
         let note = Note {
@@ -705,7 +717,7 @@ impl Store {
         let text = clean_note_text(text);
         let carbs = check_carbs(carbs)?;
         if text.is_empty() && treatment.is_none() && carbs.is_none() {
-            bail!("the note is empty");
+            bail!(tr!("the note is empty"));
         }
         let note = self.notes.get_mut(id).filter(|n| !n.deleted).ok_or_else(|| anyhow!("note not found"))?;
         note.time = time.timestamp();

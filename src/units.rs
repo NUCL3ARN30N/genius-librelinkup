@@ -13,9 +13,9 @@ impl Units {
         if self.mg_dl { "mg/dL" } else { "mmol/L" }
     }
 
-    /// Number only, e.g. "6.2" or "112".
+    /// Number only, e.g. "6.2" or "112" (decimal comma in German).
     pub fn fmt(&self, mg: f32) -> String {
-        if self.mg_dl { format!("{:.0}", mg) } else { format!("{:.1}", mg / MMOL_FACTOR) }
+        if self.mg_dl { format!("{:.0}", mg) } else { gllu_core::i18n::numbers(&format!("{:.1}", mg / MMOL_FACTOR)) }
     }
 
     pub fn fmt_unit(&self, mg: f32) -> String {
@@ -40,7 +40,7 @@ impl Units {
 
     /// The number only, as in the settings field: "2.0" (mg/dL) or "0.11" (mmol/L).
     pub fn fmt_rate_number(&self, mg_per_min: f32) -> String {
-        if self.mg_dl { format!("{mg_per_min:.1}") } else { format!("{:.2}", mg_per_min / MMOL_FACTOR) }
+        gllu_core::i18n::numbers(&if self.mg_dl { format!("{mg_per_min:.1}") } else { format!("{:.2}", mg_per_min / MMOL_FACTOR) })
     }
 
     /// A rate typed in the shown unit per minute, back to mg/dL per minute.

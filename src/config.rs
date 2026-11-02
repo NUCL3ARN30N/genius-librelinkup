@@ -191,6 +191,8 @@ pub struct Settings {
     pub start_minimized: bool,
     pub autostart: bool,
     pub dark_mode: Option<bool>,
+    /// "" follows the system, "en" or "de"
+    pub language: String,
     pub appearance: Appearance,
     pub updates: UpdateSettings,
     pub sync: SyncSettings,
@@ -232,6 +234,7 @@ impl Default for Settings {
             start_minimized: false,
             autostart: false,
             dark_mode: None,
+            language: String::new(),
             appearance: Appearance::default(),
             updates: UpdateSettings::default(),
             sync: SyncSettings::default(),
@@ -330,6 +333,9 @@ impl Settings {
         self.notify_repeat_minutes = self.notify_repeat_minutes.clamp(0, 240);
         self.fast_rate = if self.fast_rate.is_finite() { self.fast_rate.clamp(0.5, 10.0) } else { 2.0 };
         self.predict_minutes = self.predict_minutes.clamp(10, 30);
+        if !matches!(self.language.as_str(), "" | "en" | "de") {
+            self.language.clear();
+        }
         let defaults = Settings::default();
         for (value, default) in [(&mut self.quiet_from, defaults.quiet_from), (&mut self.quiet_to, defaults.quiet_to)] {
             match crate::alerts::parse_hhmm(value) {

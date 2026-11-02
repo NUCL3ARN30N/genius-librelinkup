@@ -11,6 +11,10 @@ from here as well.
 - Smarter alerts (Settings → Notifications): **predicted low** – the trend of the last 20 minutes reaches the low threshold within 10–30 minutes (on by default); **falling fast** and **rising fast** – trend arrow straight down/up or faster than a rate you choose; **urgent low** below 3.0 mmol/L (54 mg/dL). Prediction and trend alerts are shown once per episode.
 - Quiet hours: between two times (also across midnight) only urgent lows notify; what is suppressed is not shown afterwards either.
 - Snooze: the tray menu mutes alerts for 30 minutes, 1 or 2 hours (or resumes them); on Linux notifications also have a "Snooze 30 min" button. Urgent lows are never snoozed, and the tray tooltip shows until when alerts are snoozed.
+- German translation: the whole app, notifications, the tray menu, the PDF report, the export email and the server's email reports (`GLLU_LANG=de`). Settings → Display → Language chooses System, English or Deutsch and switches at once; German uses the decimal comma.
+
+### Fixed
+- The prompt to accept updated LibreLinkUp documents read "accept the an updated legal document".
 
 ## [1.1.0] – 2026-11-02
 

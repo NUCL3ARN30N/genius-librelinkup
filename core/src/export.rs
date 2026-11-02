@@ -7,16 +7,18 @@ use std::path::Path;
 use anyhow::{Context, Result, bail};
 use chrono::{Datelike, Local, Timelike};
 
+use crate::tr;
+
 /// Shortest accepted ZIP password (characters).
 pub const MIN_PASSWORD_CHARS: usize = 8;
 
 /// Checks the password typed twice in the export dialog.
 pub fn check_password(password: &str, repeat: &str) -> Result<()> {
     if password.chars().count() < MIN_PASSWORD_CHARS {
-        bail!("the password needs at least {MIN_PASSWORD_CHARS} characters");
+        bail!(tr!("the password needs at least {} characters", MIN_PASSWORD_CHARS));
     }
     if password != repeat {
-        bail!("the passwords do not match");
+        bail!(tr!("the passwords do not match"));
     }
     Ok(())
 }

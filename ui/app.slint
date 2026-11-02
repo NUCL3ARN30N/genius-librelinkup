@@ -43,6 +43,8 @@ export struct UiSettings {
     start-minimized: bool,
     autostart: bool,
     theme: int,
+    // 0 system, 1 English, 2 German
+    language: int,
     product: string,
     version: string,
 }
@@ -169,7 +171,7 @@ export global Notes {
     // grams
     in-out property <string> carbs;
     in-out property <string> error;
-    in property <[string]> treatments: ["None", "Rapid-acting insulin", "Long-acting insulin", "Custom…"];
+    in property <[string]> treatments: [@tr("None"), @tr("Rapid-acting insulin"), @tr("Long-acting insulin"), @tr("Custom…")];
     callback now() -> string;
     callback save(NoteDraft);
     callback delete(string);
@@ -360,7 +362,7 @@ component DashboardPage inherits Rectangle {
         spacing: Theme.gap;
 
         PageHeader {
-            title: "My glucose";
+            title: @tr("My glucose");
             if Dashboard.patients.length > 1: ComboBox {
                 y: (parent.height - self.height) / 2;
                 width: 220px;
@@ -402,7 +404,7 @@ component DashboardPage inherits Rectangle {
                     spacing: 2px;
                     HorizontalLayout {
                         Text {
-                            text: Dashboard.level == 1 ? "VERY LOW" : Dashboard.level == 2 ? "LOW" : Dashboard.level == 3 ? "IN RANGE" : Dashboard.level == 4 ? "HIGH" : Dashboard.level == 5 ? "VERY HIGH" : "NO DATA";
+                            text: Dashboard.level == 1 ? @tr("VERY LOW") : Dashboard.level == 2 ? @tr("LOW") : Dashboard.level == 3 ? @tr("IN RANGE") : Dashboard.level == 4 ? @tr("HIGH") : Dashboard.level == 5 ? @tr("VERY HIGH") : @tr("NO DATA");
                             color: root.filled ? root.card-ink-soft : root.range-color;
                             font-size: 13px;
                             font-weight: 700;
@@ -453,7 +455,7 @@ component DashboardPage inherits Rectangle {
                 VerticalLayout {
                     padding: 20px;
                     spacing: 12px;
-                    Title { text: "Last 24 hours"; }
+                    Title { text: @tr("Last 24 hours"); }
                     HorizontalLayout {
                         spacing: 24px;
                         for s in Dashboard.stats: StatTile { item: s; }
@@ -491,14 +493,14 @@ component DashboardPage inherits Rectangle {
                     }
                     Caption {
                         horizontal-stretch: 1;
-                        text: Notes.available ? "Point at the graph for values · click it to add a note there" : "Point at the graph for values";
+                        text: Notes.available ? @tr("Point at the graph for values · click it to add a note there") : @tr("Point at the graph for values");
                         vertical-alignment: center;
                         wrap: no-wrap;
                         overflow: elide;
                     }
                     if Notes.available: MButton {
                         y: (parent.height - self.height) / 2;
-                        text: "Add note";
+                        text: @tr("Add note");
                         kind: 3;
                         icon: Icons.note;
                         clicked => { Notes.compose(""); }
@@ -531,11 +533,11 @@ component ReportsPage inherits Rectangle {
             spacing: Theme.gap;
 
             PageHeader {
-                title: "Glucose report";
+                title: @tr("Glucose report");
                 subtitle: Reports.subtitle;
                 if ExportBridge.available: MButton {
                     y: (parent.height - self.height) / 2;
-                    text: "Export…";
+                    text: @tr("Export…");
                     kind: 2;
                     icon: Icons.download;
                     clicked => { ExportBridge.show(); }
@@ -543,7 +545,7 @@ component ReportsPage inherits Rectangle {
                 Segmented {
                     y: (parent.height - self.height) / 2;
                     width: 300px;
-                    options: ["7 d", "14 d", "30 d", "90 d"];
+                    options: [@tr("7 d"), @tr("14 d"), @tr("30 d"), @tr("90 d")];
                     selected <=> Reports.period-index;
                     changed(i) => { Reports.period-changed(i); }
                 }
@@ -569,7 +571,7 @@ component ReportsPage inherits Rectangle {
                     VerticalLayout {
                         padding: 20px;
                         spacing: 14px;
-                        Title { text: "Glucose statistics"; }
+                        Title { text: @tr("Glucose statistics"); }
                         for s in Reports.stats: HorizontalLayout {
                             spacing: 12px;
                             VerticalLayout {
@@ -595,13 +597,13 @@ component ReportsPage inherits Rectangle {
                     VerticalLayout {
                         padding: 20px;
                         spacing: 14px;
-                        Title { text: "Time in ranges"; }
+                        Title { text: @tr("Time in ranges"); }
                         TirChart {
                             min-height: 260px;
                             vertical-stretch: 1;
                             rows: Reports.tir;
                         }
-                        Caption { text: "Goals (most adults with type 1/2): target > 70 %, low < 4 %, very low < 1 %, high < 25 %, very high < 5 %."; }
+                        Caption { text: @tr("Goals (most adults with type 1/2): target > 70 %, low < 4 %, very low < 1 %, high < 25 %, very high < 5 %."); }
                     }
                 }
             }
@@ -611,8 +613,8 @@ component ReportsPage inherits Rectangle {
                 VerticalLayout {
                     padding: 20px;
                     spacing: 8px;
-                    Title { text: "Ambulatory glucose profile (AGP)"; }
-                    Caption { text: "Median (line) with 25–75 % (dark) and 5–95 % (light) percentiles, as if all days happened in a single day."; }
+                    Title { text: @tr("Ambulatory glucose profile (AGP)"); }
+                    Caption { text: @tr("Median (line) with 25–75 % (dark) and 5–95 % (light) percentiles, as if all days happened in a single day."); }
                     AgpChart {
                         vertical-stretch: 1;
                         outer-path: Reports.outer-path;
@@ -630,9 +632,9 @@ component ReportsPage inherits Rectangle {
                 VerticalLayout {
                     padding: 20px;
                     spacing: 12px;
-                    Title { text: "Glucose pattern insights"; }
+                    Title { text: @tr("Glucose pattern insights"); }
                     InsightsTable { rows: Reports.insights; }
-                    Caption { text: "Traffic lights are a simplified, informational approximation of LibreView's pattern insights – not medical advice."; }
+                    Caption { text: @tr("Traffic lights are a simplified, informational approximation of LibreView's pattern insights – not medical advice."); }
                 }
             }
 
@@ -640,9 +642,9 @@ component ReportsPage inherits Rectangle {
                 VerticalLayout {
                     padding: 20px;
                     spacing: 12px;
-                    Title { text: "Insulin & carbs"; }
+                    Title { text: @tr("Insulin & carbs"); }
                     if Reports.ic-days.length == 0: Caption {
-                        text: "No insulin or carbs were recorded in this period. Add them to a note (Add note on the Glucose page, or click the graph) and they are summed up here.";
+                        text: @tr("No insulin or carbs were recorded in this period. Add them to a note (Add note on the Glucose page, or click the graph) and they are summed up here.");
                         font-size: 13px;
                     }
                     if Reports.ic-days.length > 0: HorizontalLayout {
@@ -680,7 +682,7 @@ component ReportsPage inherits Rectangle {
                             HorizontalLayout {
                                 spacing: 16px;
                                 alignment: start;
-                                for item in [{ c: Theme.insulin, t: "Insulin (units)" }, { c: Theme.carbs, t: "Carbs (grams)" }]: HorizontalLayout {
+                                for item in [{ c: Theme.insulin, t: @tr("Insulin (units)") }, { c: Theme.carbs, t: @tr("Carbs (grams)") }]: HorizontalLayout {
                                     spacing: 6px;
                                     Rectangle {
                                         width: 10px;
@@ -697,7 +699,7 @@ component ReportsPage inherits Rectangle {
                             }
                         }
                     }
-                    if Reports.ic-days.length > 0: Caption { text: "Averages count only the days with entries. The totals come from your notes and are only as complete as they are."; }
+                    if Reports.ic-days.length > 0: Caption { text: @tr("Averages count only the days with entries. The totals come from your notes and are only as complete as they are."); }
                 }
             }
 
@@ -705,12 +707,12 @@ component ReportsPage inherits Rectangle {
                 VerticalLayout {
                     padding: 20px;
                     spacing: 8px;
-                    Title { text: "Daily glucose profiles"; }
-                    Caption { text: "Share of the day in the target range and the course of each day. Point at a day to read values, click it for details and notes."; }
+                    Title { text: @tr("Daily glucose profiles"); }
+                    Caption { text: @tr("Share of the day in the target range and the course of each day. Point at a day to read values, click it for details and notes."); }
                     HorizontalLayout {
                         spacing: 8px;
                         padding-top: 4px;
-                        for name in ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]: Text {
+                        for name in [@tr("Mon"), @tr("Tue"), @tr("Wed"), @tr("Thu"), @tr("Fri"), @tr("Sat"), @tr("Sun")]: Text {
                             horizontal-stretch: 1;
                             text: name;
                             font-size: 12px;
@@ -751,6 +753,7 @@ component SettingsPage inherits Rectangle {
         server.current-index = s.server-index;
         units.selected = s.units;
         theme.selected = s.theme;
+        language.selected = s.language;
         poll.value = s.poll-seconds;
         target-low.text = s.target-low;
         target-high.text = s.target-high;
@@ -809,6 +812,7 @@ component SettingsPage inherits Rectangle {
             start-minimized: start-min.checked,
             autostart: autostart.checked,
             theme: theme.selected,
+            language: language.selected,
             product: product.text,
             version: version.text,
         };
@@ -818,16 +822,16 @@ component SettingsPage inherits Rectangle {
         PageHeader {
             padding: 24px;
             padding-bottom: 8px;
-            title: "Settings";
+            title: @tr("Settings");
             MButton {
                 y: (parent.height - self.height) / 2;
-                text: "Revert";
+                text: @tr("Revert");
                 kind: 3;
                 clicked => { root.load(); }
             }
             MButton {
                 y: (parent.height - self.height) / 2;
-                text: "Save";
+                text: @tr("Save");
                 kind: 0;
                 icon: Icons.check;
                 clicked => { SettingsBridge.save(root.collect()); }
@@ -842,36 +846,36 @@ component SettingsPage inherits Rectangle {
                 spacing: Theme.gap;
 
                 SettingsSection {
-                    title: "Account";
+                    title: @tr("Account");
                     HorizontalLayout {
                         spacing: 12px;
                         Text {
-                            text: s.email != "" ? "Signed in as " + s.email : "Not signed in to LibreLinkUp – values come from the caching server";
+                            text: s.email != "" ? @tr("Signed in as {}", s.email) : @tr("Not signed in to LibreLinkUp – values come from the caching server");
                             color: Theme.on-surface;
                             vertical-alignment: center;
                             wrap: word-wrap;
                         }
                         Rectangle { horizontal-stretch: 1; }
                         if s.email != "": MButton {
-                            text: "Sign out";
+                            text: @tr("Sign out");
                             kind: 2;
                             clicked => { SettingsBridge.logout(); }
                         }
                     }
                     VerticalLayout {
                         spacing: 4px;
-                        Caption { text: "LibreLinkUp server – automatic follows Abbott's regional redirects"; }
+                        Caption { text: @tr("LibreLinkUp server – automatic follows Abbott's regional redirects"); }
                         server := ComboBox { model: SettingsBridge.servers; }
                     }
                 }
 
                 SettingsSection {
-                    title: "Caching server";
-                    subtitle: "An always-on gllu-server keeps polling while this computer is off and fills the gaps here.";
+                    title: @tr("Caching server");
+                    subtitle: @tr("An always-on gllu-server keeps polling while this computer is off and fills the gaps here.");
                     if !SyncBridge.paired: VerticalLayout {
                         spacing: 12px;
                         Caption {
-                            text: "On the server run  gllu-server pair  (Docker: docker exec gllu gllu-server pair) and paste the code. The code pins the server's certificate, so the connection cannot be intercepted.";
+                            text: @tr("On the server run  gllu-server pair  (Docker: docker exec gllu gllu-server pair) and paste the code. The code pins the server's certificate, so the connection cannot be intercepted.");
                             font-size: 13px;
                         }
                         HorizontalLayout {
@@ -883,7 +887,7 @@ component SettingsPage inherits Rectangle {
                             VerticalLayout {
                                 alignment: center;
                                 MButton {
-                                    text: "Pair";
+                                    text: @tr("Pair");
                                     kind: 0;
                                     enabled: pair-code.text != "" && !SyncBridge.busy;
                                     clicked => {
@@ -906,14 +910,14 @@ component SettingsPage inherits Rectangle {
                             }
                         }
                         MButton {
-                            text: "Sync now";
+                            text: @tr("Sync now");
                             kind: 1;
                             icon: Icons.refresh;
                             enabled: !SyncBridge.busy;
                             clicked => { SyncBridge.sync-now(); }
                         }
                         MButton {
-                            text: "Unpair";
+                            text: @tr("Unpair");
                             kind: 3;
                             clicked => { SyncBridge.unpair(); }
                         }
@@ -925,59 +929,65 @@ component SettingsPage inherits Rectangle {
                         wrap: word-wrap;
                     }
                     source := MSwitch {
-                        text: "Use the server for live values";
-                        supporting: "This computer then stops polling LibreLinkUp itself – fewer logins on your account.";
+                        text: @tr("Use the server for live values");
+                        supporting: @tr("This computer then stops polling LibreLinkUp itself – fewer logins on your account.");
                         checked <=> SyncBridge.use-as-source;
                         toggled(v) => { SyncBridge.source-changed(v); }
                     }
                 }
 
                 SettingsSection {
-                    title: "Display";
+                    title: @tr("Display");
                     HorizontalLayout {
                         spacing: 16px;
                         VerticalLayout {
                             spacing: 4px;
                             horizontal-stretch: 1;
-                            Caption { text: "Units"; }
-                            units := Segmented { options: ["Automatic", "mmol/L", "mg/dL"]; }
+                            Caption { text: @tr("Units"); }
+                            units := Segmented { options: [@tr("Automatic"), "mmol/L", "mg/dL"]; }
                         }
                         VerticalLayout {
                             spacing: 4px;
                             horizontal-stretch: 1;
-                            Caption { text: "Theme"; }
-                            theme := Segmented { options: ["System", "Light", "Dark"]; }
+                            Caption { text: @tr("Theme"); }
+                            theme := Segmented { options: [@tr("System"), @tr("Light"), @tr("Dark")]; }
+                        }
+                        VerticalLayout {
+                            spacing: 4px;
+                            horizontal-stretch: 1;
+                            Caption { text: @tr("Language"); }
+                            language := Segmented { options: [@tr("System"), "English", "Deutsch"]; }
                         }
                     }
                     HorizontalLayout {
                         spacing: 16px;
                         target-low := TextField {
-                            label: "Target range low";
+                            label: @tr("Target range low");
                             input-type: decimal;
                         }
                         target-high := TextField {
-                            label: "Target range high";
+                            label: @tr("Target range high");
                             input-type: decimal;
                         }
                         poll := Stepper {
-                            label: "Refresh every";
-                            suffix: "s";
+                            label: @tr("Refresh every");
+                            suffix: @tr("s");
                             minimum: 30;
                             maximum: 900;
                             step: 30;
                         }
                     }
-                    Caption { text: "Values are entered in the unit currently shown (mmol/L or mg/dL)."; }
+                    Caption { text: @tr("Values are entered in the unit currently shown (mmol/L or mg/dL)."); }
                 }
 
                 SettingsSection {
-                    title: "Notifications";
+                    title: @tr("Notifications");
                     HorizontalLayout {
                         spacing: 16px;
                         notify-low := MSwitch {
                             horizontal-stretch: 1;
-                            text: "Low glucose";
-                            supporting: "Notify when the value is at or below the threshold";
+                            text: @tr("Low glucose");
+                            supporting: @tr("Notify when the value is at or below the threshold");
                         }
                         low-th := TextField {
                             width: 140px;
@@ -989,8 +999,8 @@ component SettingsPage inherits Rectangle {
                         spacing: 16px;
                         notify-high := MSwitch {
                             horizontal-stretch: 1;
-                            text: "High glucose";
-                            supporting: "Notify when the value is at or above the threshold";
+                            text: @tr("High glucose");
+                            supporting: @tr("Notify when the value is at or above the threshold");
                         }
                         high-th := TextField {
                             width: 140px;
@@ -1002,12 +1012,12 @@ component SettingsPage inherits Rectangle {
                         spacing: 16px;
                         notify-stale := MSwitch {
                             horizontal-stretch: 1;
-                            text: "No new data";
-                            supporting: "Notify when no reading arrived for a while";
+                            text: @tr("No new data");
+                            supporting: @tr("Notify when no reading arrived for a while");
                         }
                         stale-min := Stepper {
                             width: 140px;
-                            suffix: "min";
+                            suffix: @tr("min");
                             minimum: 5;
                             maximum: 240;
                             step: 5;
@@ -1018,12 +1028,12 @@ component SettingsPage inherits Rectangle {
                         spacing: 16px;
                         notify-predicted := MSwitch {
                             horizontal-stretch: 1;
-                            text: "Predicted low";
-                            supporting: "Notify when the trend of the last 20 minutes reaches the low threshold soon";
+                            text: @tr("Predicted low");
+                            supporting: @tr("Notify when the trend of the last 20 minutes reaches the low threshold soon");
                         }
                         predict-min := Stepper {
                             width: 140px;
-                            suffix: "min";
+                            suffix: @tr("min");
                             minimum: 10;
                             maximum: 30;
                             step: 5;
@@ -1036,17 +1046,17 @@ component SettingsPage inherits Rectangle {
                             horizontal-stretch: 1;
                             spacing: 4px;
                             notify-falling := MSwitch {
-                                text: "Falling fast";
-                                supporting: "Trend arrow straight down, or faster than the rate on the right";
+                                text: @tr("Falling fast");
+                                supporting: @tr("Trend arrow straight down, or faster than the rate on the right");
                             }
                             notify-rising := MSwitch {
-                                text: "Rising fast";
-                                supporting: "Trend arrow straight up, or faster than the rate on the right";
+                                text: @tr("Rising fast");
+                                supporting: @tr("Trend arrow straight up, or faster than the rate on the right");
                             }
                         }
                         fast-rate := TextField {
                             width: 140px;
-                            label: "Rate per minute";
+                            label: @tr("Rate per minute");
                             enabled: notify-falling.checked || notify-rising.checked;
                         }
                     }
@@ -1054,37 +1064,37 @@ component SettingsPage inherits Rectangle {
                         spacing: 16px;
                         quiet := MSwitch {
                             horizontal-stretch: 1;
-                            text: "Quiet hours";
-                            supporting: "Only urgent lows (below 3.0 mmol/L · 54 mg/dL) notify; anything else in this time is not shown later either";
+                            text: @tr("Quiet hours");
+                            supporting: @tr("Only urgent lows (below 3.0 mmol/L · 54 mg/dL) notify; anything else in this time is not shown later either");
                         }
                         quiet-from := TextField {
                             width: 90px;
-                            label: "From";
+                            label: @tr("From");
                             placeholder: "22:00";
                             enabled: quiet.checked;
                         }
                         quiet-to := TextField {
                             width: 90px;
-                            label: "To";
+                            label: @tr("To");
                             placeholder: "07:00";
                             enabled: quiet.checked;
                         }
                     }
-                    Caption { text: "Snooze alerts from the tray icon's menu (30 minutes to 2 hours). Urgent lows are never snoozed."; }
+                    Caption { text: @tr("Snooze alerts from the tray icon's menu (30 minutes to 2 hours). Urgent lows are never snoozed."); }
                     HorizontalLayout {
                         spacing: 16px;
                         VerticalLayout {
                             horizontal-stretch: 1;
                             alignment: center;
                             Text {
-                                text: "Repeat active alerts";
+                                text: @tr("Repeat active alerts");
                                 color: Theme.on-surface;
                             }
-                            Caption { text: "Low, high and no data; 0 = notify only once per episode"; }
+                            Caption { text: @tr("Low, high and no data; 0 = notify only once per episode"); }
                         }
                         repeat-min := Stepper {
                             width: 140px;
-                            suffix: "min";
+                            suffix: @tr("min");
                             minimum: 0;
                             maximum: 240;
                             step: 5;
@@ -1093,24 +1103,24 @@ component SettingsPage inherits Rectangle {
                 }
 
                 SettingsSection {
-                    title: "Glucose log & reports";
+                    title: @tr("Glucose log & reports");
                     log-enabled := MSwitch {
-                        text: "Keep a local log of all readings";
-                        supporting: "Needed for reports and HbA1c – LibreLinkUp only keeps 12 hours";
+                        text: @tr("Keep a local log of all readings");
+                        supporting: @tr("Needed for reports and HbA1c – LibreLinkUp only keeps 12 hours");
                     }
                     HorizontalLayout {
                         spacing: 8px;
                         log-dir := TextField {
                             horizontal-stretch: 1;
-                            label: "Log folder – choose a synced folder (Nextcloud, OneDrive, …) to share it between machines";
-                            placeholder: "Default data folder";
+                            label: @tr("Log folder – choose a synced folder (Nextcloud, OneDrive, …) to share it between machines");
+                            placeholder: @tr("Default data folder");
                         }
                         VerticalLayout {
                             alignment: end;
                             HorizontalLayout {
                                 spacing: 8px;
                                 MButton {
-                                    text: "Browse…";
+                                    text: @tr("Browse…");
                                     kind: 1;
                                     clicked => {
                                         let p = SettingsBridge.browse-log-dir();
@@ -1118,7 +1128,7 @@ component SettingsPage inherits Rectangle {
                                     }
                                 }
                                 MButton {
-                                    text: "Open";
+                                    text: @tr("Open");
                                     kind: 3;
                                     icon: Icons.folder;
                                     clicked => { SettingsBridge.open-data-folder(); }
@@ -1135,20 +1145,20 @@ component SettingsPage inherits Rectangle {
                         if SettingsBridge.store-encrypted: TextField {
                             horizontal-stretch: 1;
                             input-type: password;
-                            placeholder: "Current passphrase";
+                            placeholder: @tr("Current passphrase");
                             text <=> root.current-passphrase;
                         }
                         new-pass := TextField {
                             horizontal-stretch: 1;
                             input-type: password;
-                            placeholder: SettingsBridge.store-encrypted ? "New passphrase" : "Passphrase to encrypt the log";
+                            placeholder: SettingsBridge.store-encrypted ? @tr("New passphrase") : @tr("Passphrase to encrypt the log");
                         }
                         VerticalLayout {
                             alignment: center;
                             HorizontalLayout {
                                 spacing: 8px;
                                 MButton {
-                                    text: SettingsBridge.store-encrypted ? "Change passphrase" : "Encrypt log";
+                                    text: SettingsBridge.store-encrypted ? @tr("Change passphrase") : @tr("Encrypt log");
                                     kind: 1;
                                     icon: Icons.lock;
                                     enabled: new-pass.text != "" && (!SettingsBridge.store-encrypted || root.current-passphrase != "");
@@ -1159,7 +1169,7 @@ component SettingsPage inherits Rectangle {
                                     }
                                 }
                                 if SettingsBridge.store-encrypted: MButton {
-                                    text: "Remove encryption";
+                                    text: @tr("Remove encryption");
                                     kind: 3;
                                     enabled: root.current-passphrase != "";
                                     clicked => {
@@ -1171,23 +1181,23 @@ component SettingsPage inherits Rectangle {
                         }
                     }
                     if SettingsBridge.store-encrypted: Caption {
-                        text: "Changing or removing the passphrase needs the current one.";
+                        text: @tr("Changing or removing the passphrase needs the current one.");
                     }
-                    remember-pass := MSwitch { text: "Remember the log passphrase in the system keychain"; }
+                    remember-pass := MSwitch { text: @tr("Remember the log passphrase in the system keychain"); }
                 }
 
                 SettingsSection {
-                    title: "Import & export";
+                    title: @tr("Import & export");
                     HorizontalLayout {
                         spacing: 8px;
                         alignment: start;
                         MButton {
-                            text: "Export settings…";
+                            text: @tr("Export settings…");
                             kind: 2;
                             clicked => { SettingsBridge.export-settings(); }
                         }
                         MButton {
-                            text: "Import settings…";
+                            text: @tr("Import settings…");
                             kind: 2;
                             clicked => { SettingsBridge.import-settings(); }
                         }
@@ -1196,17 +1206,17 @@ component SettingsPage inherits Rectangle {
                         spacing: 8px;
                         alignment: start;
                         MButton {
-                            text: "Import readings (CSV / LibreView)…";
+                            text: @tr("Import readings (CSV / LibreView)…");
                             kind: 2;
                             clicked => { SettingsBridge.import-csv(); }
                         }
                     }
-                    Caption { text: "Tip: import a LibreView \"Download glucose data\" CSV to backfill history older than 12 hours. Readings and notes are exported on the Reports page (Export…)."; }
+                    Caption { text: @tr("Tip: import a LibreView \"Download glucose data\" CSV to backfill history older than 12 hours. Readings and notes are exported on the Reports page (Export…)."); }
                 }
 
                 SettingsSection {
-                    title: "Updates";
-                    subtitle: "Version " + UpdateBridge.current-version + " · " + UpdateBridge.install-kind;
+                    title: @tr("Updates");
+                    subtitle: @tr("Version {} · {}", UpdateBridge.current-version, UpdateBridge.install-kind);
                     HorizontalLayout {
                         spacing: 12px;
                         VerticalLayout {
@@ -1214,7 +1224,7 @@ component SettingsPage inherits Rectangle {
                             alignment: center;
                             spacing: 2px;
                             Text {
-                                text: UpdateBridge.available ? "Version " + UpdateBridge.latest-version + " is available" : UpdateBridge.status;
+                                text: UpdateBridge.available ? @tr("Version {} is available", UpdateBridge.latest-version) : UpdateBridge.status;
                                 color: UpdateBridge.available ? Theme.primary : Theme.on-surface;
                                 font-weight: UpdateBridge.available ? 700 : 400;
                                 wrap: word-wrap;
@@ -1228,19 +1238,19 @@ component SettingsPage inherits Rectangle {
                             indeterminate: true;
                         }
                         MButton {
-                            text: "Check now";
+                            text: @tr("Check now");
                             kind: UpdateBridge.available ? 3 : 1;
                             enabled: !UpdateBridge.busy;
                             clicked => { UpdateBridge.check(); }
                         }
                         if UpdateBridge.available && UpdateBridge.can-install: MButton {
-                            text: "Update now";
+                            text: @tr("Update now");
                             kind: 0;
                             enabled: !UpdateBridge.busy;
                             clicked => { UpdateBridge.install(); }
                         }
                         if UpdateBridge.available: MButton {
-                            text: UpdateBridge.can-install ? "Release page" : "Download";
+                            text: UpdateBridge.can-install ? @tr("Release page") : @tr("Download");
                             kind: UpdateBridge.can-install ? 3 : 0;
                             clicked => { UpdateBridge.open-page(); }
                         }
@@ -1263,40 +1273,40 @@ component SettingsPage inherits Rectangle {
                     if UpdateBridge.available: HorizontalLayout {
                         alignment: start;
                         MButton {
-                            text: "Skip this version";
+                            text: @tr("Skip this version");
                             kind: 3;
                             clicked => { UpdateBridge.skip(); }
                         }
                     }
                     MSwitch {
-                        text: "Check for updates automatically";
+                        text: @tr("Check for updates automatically");
                         checked <=> UpdateBridge.auto-check;
                         toggled => { UpdateBridge.options-changed(UpdateBridge.auto-check); }
                     }
                 }
 
                 SettingsSection {
-                    title: "System";
-                    start-min := MSwitch { text: "Start minimized to tray"; }
-                    autostart := MSwitch { text: "Start when I sign in"; }
+                    title: @tr("System");
+                    start-min := MSwitch { text: @tr("Start minimized to tray"); }
+                    autostart := MSwitch { text: @tr("Start when I sign in"); }
                     dev-mode := MSwitch {
-                        text: "Developer mode";
-                        supporting: "Shows the API log (secrets and personal data redacted)";
+                        text: @tr("Developer mode");
+                        supporting: @tr("Shows the API log (secrets and personal data redacted)");
                     }
                     HorizontalLayout {
                         spacing: 16px;
-                        product := TextField { label: "Advanced: client product header"; }
-                        version := TextField { label: "Advanced: client version (raised automatically when required)"; }
+                        product := TextField { label: @tr("Advanced: client product header"); }
+                        version := TextField { label: @tr("Advanced: client version (raised automatically when required)"); }
                     }
                 }
 
                 SettingsSection {
-                    title: "Delete local data";
-                    subtitle: "Removes everything this app stored on this computer: settings, logs, the keychain entries and, if you choose, the glucose log. The app closes afterwards.";
+                    title: @tr("Delete local data");
+                    subtitle: @tr("Removes everything this app stored on this computer: settings, logs, the keychain entries and, if you choose, the glucose log. The app closes afterwards.");
                     HorizontalLayout {
                         alignment: start;
                         MButton {
-                            text: "Delete all local data…";
+                            text: @tr("Delete all local data…");
                             kind: 4;
                             icon: Icons.delete;
                             clicked => { SettingsBridge.wipe-open = true; }
@@ -1305,7 +1315,7 @@ component SettingsPage inherits Rectangle {
                 }
 
                 Caption {
-                    text: "Genius LibreLinkUp is an unofficial tool and not affiliated with Abbott. It uses an undocumented API that may change at any time. Do not make treatment decisions based on this app.";
+                    text: @tr("Genius LibreLinkUp is an unofficial tool and not affiliated with Abbott. It uses an undocumented API that may change at any time. Do not make treatment decisions based on this app.");
                 }
             }
         }
@@ -1389,12 +1399,12 @@ component AppearancePage inherits Rectangle {
             spacing: Theme.gap;
 
             PageHeader {
-                title: "Appearance";
-                subtitle: "Changes apply immediately and are saved automatically.";
+                title: @tr("Appearance");
+                subtitle: @tr("Changes apply immediately and are saved automatically.");
             }
 
             SettingsSection {
-                title: "Tray icon";
+                title: @tr("Tray icon");
                 HorizontalLayout {
                     spacing: 24px;
                     Rectangle {
@@ -1440,7 +1450,7 @@ component AppearancePage inherits Rectangle {
                                     image-rendering: pixelated;
                                 }
                                 Caption {
-                                    text: SettingsBridge.tray-actual-size + " px";
+                                    text: SettingsBridge.tray-actual-size + @tr(" px");
                                     vertical-alignment: center;
                                 }
                             }
@@ -1451,9 +1461,9 @@ component AppearancePage inherits Rectangle {
                         spacing: 12px;
                         VerticalLayout {
                             spacing: 4px;
-                            Caption { text: "Shape"; }
+                            Caption { text: @tr("Shape"); }
                             shape := Segmented {
-                                options: ["Number only", "Drop", "Circle", "Square"];
+                                options: [@tr("Number only"), @tr("Drop"), @tr("Circle"), @tr("Square")];
                                 changed => { root.emit(); }
                             }
                         }
@@ -1462,31 +1472,31 @@ component AppearancePage inherits Rectangle {
                             VerticalLayout {
                                 spacing: 4px;
                                 horizontal-stretch: 1;
-                                Caption { text: "Text colour"; }
+                                Caption { text: @tr("Text colour"); }
                                 ink := Segmented {
-                                    options: ["Auto", "White", "Black"];
+                                    options: [@tr("Auto"), @tr("White"), @tr("Black")];
                                     changed => { root.emit(); }
                                 }
                             }
                             VerticalLayout {
                                 spacing: 4px;
                                 horizontal-stretch: 1;
-                                Caption { text: "Font"; }
+                                Caption { text: @tr("Font"); }
                                 font := Segmented {
-                                    options: ["Condensed", "Regular", "Mono"];
+                                    options: [@tr("Condensed"), @tr("Regular"), @tr("Mono")];
                                     changed => { root.emit(); }
                                 }
                             }
                         }
                         arrow := MSwitch {
-                            text: "Show the trend arrow";
-                            supporting: arrow-separate.checked ? "As a second tray icon next to the number" : "Inside the number icon – the number gets a little narrower to make room";
+                            text: @tr("Show the trend arrow");
+                            supporting: arrow-separate.checked ? @tr("As a second tray icon next to the number") : @tr("Inside the number icon – the number gets a little narrower to make room");
                             toggled => { root.emit(); }
                         }
                         arrow-separate := MSwitch {
                             enabled: arrow.checked;
-                            text: "Show the arrow as a separate tray icon";
-                            supporting: "Keeps the number large and readable. Windows may first put the new icon among the hidden icons – drag it next to the value to keep it visible.";
+                            text: @tr("Show the arrow as a separate tray icon");
+                            supporting: @tr("Keeps the number large and readable. Windows may first put the new icon among the hidden icons – drag it next to the value to keep it visible.");
                             toggled => { root.emit(); }
                         }
                     }
@@ -1494,10 +1504,10 @@ component AppearancePage inherits Rectangle {
             }
 
             SettingsSection {
-                title: "Colours";
+                title: @tr("Colours");
                 VerticalLayout {
                     spacing: 6px;
-                    Caption { text: "Accent colour"; }
+                    Caption { text: @tr("Accent colour"); }
                     HorizontalLayout {
                         spacing: 10px;
                         for p[i] in root.preset-colors: Swatch {
@@ -1521,29 +1531,29 @@ component AppearancePage inherits Rectangle {
                     spacing: 32px;
                     VerticalLayout {
                         spacing: 8px;
-                        Caption { text: "Glucose range colours (graphs, value card and tray)"; }
+                        Caption { text: @tr("Glucose range colours (graphs, value card and tray)"); }
                         vhigh := ColorRow {
-                            label: "Very high";
+                            label: @tr("Very high");
                             swatch: Theme.very-high;
                             edited => { root.emit(); }
                         }
                         high := ColorRow {
-                            label: "High";
+                            label: @tr("High");
                             swatch: Theme.high;
                             edited => { root.emit(); }
                         }
                         target := ColorRow {
-                            label: "In range";
+                            label: @tr("In range");
                             swatch: Theme.target;
                             edited => { root.emit(); }
                         }
                         low := ColorRow {
-                            label: "Low";
+                            label: @tr("Low");
                             swatch: Theme.low;
                             edited => { root.emit(); }
                         }
                         vlow := ColorRow {
-                            label: "Very low";
+                            label: @tr("Very low");
                             swatch: Theme.very-low;
                             edited => { root.emit(); }
                         }
@@ -1551,7 +1561,7 @@ component AppearancePage inherits Rectangle {
                     VerticalLayout {
                         alignment: end;
                         MButton {
-                            text: "Reset range colours";
+                            text: @tr("Reset range colours");
                             kind: 3;
                             clicked => { SettingsBridge.reset-colors(); }
                         }
@@ -1561,45 +1571,45 @@ component AppearancePage inherits Rectangle {
             }
 
             SettingsSection {
-                title: "Layout";
+                title: @tr("Layout");
                 VerticalLayout {
                     spacing: 4px;
-                    Caption { text: "Corners"; }
+                    Caption { text: @tr("Corners"); }
                     corners := Segmented {
                         width: 360px;
-                        options: ["Square", "Rounded", "Round"];
+                        options: [@tr("Square"), @tr("Rounded"), @tr("Round")];
                         changed => { root.emit(); }
                     }
                 }
                 colored := MSwitch {
-                    text: "Fill the current value card with the range colour";
+                    text: @tr("Fill the current value card with the range colour");
                     toggled => { root.emit(); }
                 }
                 stats := MSwitch {
-                    text: "Show the 24-hour statistics card";
+                    text: @tr("Show the 24-hour statistics card");
                     toggled => { root.emit(); }
                 }
             }
 
             SettingsSection {
-                title: "Glucose graph";
+                title: @tr("Glucose graph");
                 HorizontalLayout {
                     spacing: 16px;
                     VerticalLayout {
                         spacing: 4px;
                         horizontal-stretch: 1;
-                        Caption { text: "Time span"; }
+                        Caption { text: @tr("Time span"); }
                         hours := Segmented {
-                            options: ["3 h", "6 h", "12 h", "24 h"];
+                            options: [@tr("3 h"), @tr("6 h"), @tr("12 h"), @tr("24 h")];
                             changed => { root.emit(); }
                         }
                     }
                     VerticalLayout {
                         spacing: 4px;
                         horizontal-stretch: 1;
-                        Caption { text: "Style"; }
+                        Caption { text: @tr("Style"); }
                         gstyle := Segmented {
-                            options: ["Line", "Dots", "Line + dots"];
+                            options: [@tr("Line"), @tr("Dots"), @tr("Line + dots")];
                             changed => { root.emit(); }
                         }
                     }
@@ -1673,7 +1683,7 @@ component AboutPage inherits Rectangle {
                         color: Theme.on-surface;
                     }
                     Caption {
-                        text: "Version " + About.version + " · free software under the GNU GPL v3";
+                        text: @tr("Version {} · free software under the GNU GPL v3", About.version);
                         font-size: 13px;
                     }
                 }
@@ -1681,45 +1691,45 @@ component AboutPage inherits Rectangle {
             }
 
             SettingsSection {
-                title: "Open source on GitHub";
-                subtitle: "The code, the documentation and every release are public. Ideas, bug reports and pull requests are welcome.";
+                title: @tr("Open source on GitHub");
+                subtitle: @tr("The code, the documentation and every release are public. Ideas, bug reports and pull requests are welcome.");
                 VerticalLayout {
                     spacing: 2px;
                     LinkRow {
                         icon: Icons.code;
-                        title: "Source code";
-                        subtitle: "github.com/NUCL3ARN30N/genius-librelinkup";
+                        title: @tr("Source code");
+                        subtitle: @tr("github.com/NUCL3ARN30N/genius-librelinkup");
                         clicked => { About.open-link(0); }
                     }
                     LinkRow {
                         icon: Icons.note;
-                        title: "Report a problem or suggest a feature";
-                        subtitle: "GitHub issues – please mention your version and operating system";
+                        title: @tr("Report a problem or suggest a feature");
+                        subtitle: @tr("GitHub issues – please mention your version and operating system");
                         clicked => { About.open-link(1); }
                     }
                     LinkRow {
                         icon: Icons.refresh;
-                        title: "Releases & changelog";
-                        subtitle: "Downloads for Windows and Linux and what changed in each version";
+                        title: @tr("Releases & changelog");
+                        subtitle: @tr("Downloads for Windows and Linux and what changed in each version");
                         clicked => { About.open-link(2); }
                     }
                     LinkRow {
                         icon: Icons.info;
-                        title: "Documentation";
-                        subtitle: "Features, reports, the caching server and where your data is stored";
+                        title: @tr("Documentation");
+                        subtitle: @tr("Features, reports, the caching server and where your data is stored");
                         clicked => { About.open-link(4); }
                     }
                     LinkRow {
                         icon: Icons.lock;
-                        title: "Licence";
-                        subtitle: "GNU General Public License v3.0";
+                        title: @tr("Licence");
+                        subtitle: @tr("GNU General Public License v3.0");
                         clicked => { About.open-link(3); }
                     }
                 }
             }
 
             if About.changes != "": SettingsSection {
-                title: "What's new in " + About.version;
+                title: @tr("What's new in {}", About.version);
                 Text {
                     text: About.changes;
                     color: Theme.on-surface;
@@ -1728,9 +1738,9 @@ component AboutPage inherits Rectangle {
             }
 
             SettingsSection {
-                title: "Disclaimer";
+                title: @tr("Disclaimer");
                 Caption {
-                    text: "Genius LibreLinkUp is an unofficial tool and not affiliated with Abbott. It uses the undocumented LibreLinkUp API, which can change at any time. Never make treatment decisions based on this app – use your sensor reader or the official app.";
+                    text: @tr("Genius LibreLinkUp is an unofficial tool and not affiliated with Abbott. It uses the undocumented LibreLinkUp API, which can change at any time. Never make treatment decisions based on this app – use your sensor reader or the official app.");
                     font-size: 13px;
                 }
             }
@@ -1744,18 +1754,18 @@ component DevPage inherits Rectangle {
         padding: 24px;
         spacing: Theme.gap;
         PageHeader {
-            title: "API log";
-            subtitle: "Secrets and personal identifiers are redacted. File: " + DevBridge.log-path;
+            title: @tr("API log");
+            subtitle: @tr("Secrets and personal identifiers are redacted. File: {}", DevBridge.log-path);
             MButton {
                 y: (parent.height - self.height) / 2;
-                text: "Open log folder";
+                text: @tr("Open log folder");
                 kind: 2;
                 icon: Icons.folder;
                 clicked => { DevBridge.open-log-folder(); }
             }
             MButton {
                 y: (parent.height - self.height) / 2;
-                text: "Clear";
+                text: @tr("Clear");
                 kind: 3;
                 clicked => {
                     root.selected = -1;
@@ -1811,7 +1821,7 @@ component DevPage inherits Rectangle {
                         vertical-stretch: 1;
                         read-only: true;
                         font-size: 12px;
-                        text: root.selected >= 0 && root.selected < DevBridge.entries.length ? DevBridge.entries[root.selected].detail : "Select a request (text can be selected and copied)";
+                        text: root.selected >= 0 && root.selected < DevBridge.entries.length ? DevBridge.entries[root.selected].detail : @tr("Select a request (text can be selected and copied)");
                     }
                 }
             }
@@ -1905,7 +1915,8 @@ export component AppWindow inherits Window {
     HorizontalLayout {
         // navigation rail
         Rectangle {
-            width: 88px;
+            // wide enough for the German labels ("Einstellungen")
+            width: 100px;
             background: Theme.surface;
             VerticalLayout {
                 padding-top: 16px;
@@ -1923,7 +1934,7 @@ export component AppWindow inherits Window {
                     alignment: center;
                     NavItem {
                         icon: Icons.home;
-                        label: "Glucose";
+                        label: @tr("Glucose");
                         selected: root.page == 0;
                         clicked => { root.page = 0; }
                     }
@@ -1932,7 +1943,7 @@ export component AppWindow inherits Window {
                     alignment: center;
                     NavItem {
                         icon: Icons.chart;
-                        label: "Reports";
+                        label: @tr("Reports");
                         selected: root.page == 1;
                         clicked => { root.page = 1; }
                     }
@@ -1941,7 +1952,7 @@ export component AppWindow inherits Window {
                     alignment: center;
                     NavItem {
                         icon: Icons.palette;
-                        label: "Appearance";
+                        label: @tr("Appearance");
                         selected: root.page == 4;
                         clicked => { root.page = 4; }
                     }
@@ -1950,7 +1961,7 @@ export component AppWindow inherits Window {
                     alignment: center;
                     NavItem {
                         icon: Icons.settings;
-                        label: "Settings";
+                        label: @tr("Settings");
                         selected: root.page == 2;
                         clicked => { root.page = 2; }
                     }
@@ -1959,7 +1970,7 @@ export component AppWindow inherits Window {
                     alignment: center;
                     NavItem {
                         icon: Icons.code;
-                        label: "API log";
+                        label: @tr("API log");
                         selected: root.page == 3;
                         clicked => { root.page = 3; }
                     }
@@ -1969,7 +1980,7 @@ export component AppWindow inherits Window {
                     alignment: center;
                     NavItem {
                         icon: Icons.info;
-                        label: "About";
+                        label: @tr("About");
                         selected: root.page == 5;
                         clicked => { root.page = 5; }
                     }
@@ -1999,14 +2010,14 @@ export component AppWindow inherits Window {
         DialogCard {
             width: 460px;
             height: 360px;
-            title: "Connect to a caching server";
+            title: @tr("Connect to a caching server");
             logo: true;
             Caption {
-                text: "Run  gllu-server pair  on your server and paste the pairing code. This computer then reads all values from the server and needs no LibreLinkUp login.";
+                text: @tr("Run  gllu-server pair  on your server and paste the pairing code. This computer then reads all values from the server and needs no LibreLinkUp login.");
                 font-size: 13px;
             }
             login-pair := TextField {
-                label: "Pairing code";
+                label: @tr("Pairing code");
                 placeholder: "gllu1:…";
             }
             if SyncBridge.status != "": Text {
@@ -2019,7 +2030,7 @@ export component AppWindow inherits Window {
             HorizontalLayout {
                 spacing: 8px;
                 MButton {
-                    text: "Back";
+                    text: @tr("Back");
                     kind: 3;
                     clicked => { root.login-with-server = false; }
                 }
@@ -2031,7 +2042,7 @@ export component AppWindow inherits Window {
                     indeterminate: true;
                 }
                 MButton {
-                    text: "Pair";
+                    text: @tr("Pair");
                     kind: 0;
                     enabled: login-pair.text != "" && !SyncBridge.busy;
                     clicked => { SyncBridge.pair(login-pair.text, true); }
@@ -2048,28 +2059,28 @@ export component AppWindow inherits Window {
             title: "Genius LibreLinkUp";
             logo: true;
             Caption {
-                text: "Sign in with your LibreLinkUp (follower) account.";
+                text: @tr("Sign in with your LibreLinkUp (follower) account.");
                 font-size: 13px;
             }
             email := TextField {
-                label: "Email";
+                label: @tr("Email");
                 text: root.login-email;
             }
             pw-edit := TextField {
-                label: "Password";
+                label: @tr("Password");
                 input-type: password;
                 accepted => { root.login(email.text, pw-edit.text, remember.checked, server.current-index); }
             }
             VerticalLayout {
                 spacing: 4px;
-                Caption { text: "Server"; }
+                Caption { text: @tr("Server"); }
                 server := ComboBox {
                     model: root.login-servers;
                     current-index: 0;
                 }
             }
             remember := MSwitch {
-                text: "Remember password in the system keychain";
+                text: @tr("Remember password in the system keychain");
                 checked: true;
             }
             if root.login-error != "": Banner { text: root.login-error; }
@@ -2077,7 +2088,7 @@ export component AppWindow inherits Window {
             HorizontalLayout {
                 spacing: 12px;
                 MButton {
-                    text: "Use a caching server instead";
+                    text: @tr("Use a caching server instead");
                     kind: 3;
                     clicked => { root.login-with-server = true; }
                 }
@@ -2089,7 +2100,7 @@ export component AppWindow inherits Window {
                     indeterminate: true;
                 }
                 MButton {
-                    text: "Sign in";
+                    text: @tr("Sign in");
                     kind: 0;
                     enabled: !root.login-busy && email.text != "" && pw-edit.text != "";
                     clicked => { root.login(email.text, pw-edit.text, remember.checked, server.current-index); }
@@ -2102,19 +2113,19 @@ export component AppWindow inherits Window {
         DialogCard {
             width: 460px;
             height: 340px;
-            title: root.store-new ? "Protect your glucose log" : "Unlock your glucose log";
+            title: root.store-new ? @tr("Protect your glucose log") : @tr("Unlock your glucose log");
             icon: Icons.lock;
             Caption {
-                text: root.store-new ? "Choose a passphrase to encrypt the log files. Leave it empty to store them unencrypted." : "The log is encrypted. Enter the passphrase to load your history.";
+                text: root.store-new ? @tr("Choose a passphrase to encrypt the log files. Leave it empty to store them unencrypted.") : @tr("The log is encrypted. Enter the passphrase to load your history.");
                 font-size: 13px;
             }
             pass := TextField {
-                label: "Passphrase";
+                label: @tr("Passphrase");
                 input-type: password;
                 accepted => { root.unlock(pass.text, keep.checked); }
             }
             keep := MSwitch {
-                text: "Remember in the system keychain";
+                text: @tr("Remember in the system keychain");
                 checked: true;
             }
             if root.unlock-error != "": Banner { text: root.unlock-error; }
@@ -2129,12 +2140,12 @@ export component AppWindow inherits Window {
                 }
                 Rectangle { horizontal-stretch: 1; }
                 MButton {
-                    text: "Continue without log";
+                    text: @tr("Continue without log");
                     kind: 3;
                     clicked => { root.skip-unlock(); }
                 }
                 MButton {
-                    text: root.store-new ? "Create" : "Unlock";
+                    text: root.store-new ? @tr("Create") : @tr("Unlock");
                     kind: 0;
                     enabled: !root.unlock-busy && (root.store-new || pass.text != "");
                     clicked => { root.unlock(pass.text, keep.checked); }
@@ -2170,7 +2181,7 @@ export component AppWindow inherits Window {
                     }
                     if Notes.available: MButton {
                         y: (parent.height - self.height) / 2;
-                        text: "Add note";
+                        text: @tr("Add note");
                         kind: 3;
                         icon: Icons.note;
                         clicked => { Notes.compose(Reports.detail-date + " 12:00"); }
@@ -2235,7 +2246,7 @@ export component AppWindow inherits Window {
                     VerticalLayout {
                         width: 280px;
                         spacing: 6px;
-                        Title { text: "Notes"; }
+                        Title { text: @tr("Notes"); }
                         if Reports.detail-totals != "": Text {
                             text: Reports.detail-totals;
                             color: Theme.on-surface;
@@ -2243,7 +2254,7 @@ export component AppWindow inherits Window {
                             font-weight: 600;
                             wrap: word-wrap;
                         }
-                        if Reports.detail-notes.length == 0: Caption { text: Notes.available ? "No notes on this day – click the graph to add one." : "No notes on this day."; }
+                        if Reports.detail-notes.length == 0: Caption { text: Notes.available ? @tr("No notes on this day – click the graph to add one.") : @tr("No notes on this day."); }
                         ListView {
                             vertical-stretch: 1;
                             for n in Reports.detail-notes: Rectangle {
@@ -2295,19 +2306,19 @@ export component AppWindow inherits Window {
             y: (parent.height - self.height) / 2;
             width: 540px;
             height: 470px;
-            title: "Delete all local data?";
+            title: @tr("Delete all local data?");
             icon: Icons.delete;
             Caption {
-                text: "This permanently removes from this computer:\n•  settings, app and API logs\n•  the saved LibreLinkUp sign-in, the log passphrase and the caching-server pairing (system keychain)\n•  the autostart entry";
+                text: @tr("This permanently removes from this computer:\n•  settings, app and API logs\n•  the saved LibreLinkUp sign-in, the log passphrase and the caching-server pairing (system keychain)\n•  the autostart entry");
                 font-size: 13px;
             }
             wipe-log := MSwitch {
-                text: "Also delete the glucose log";
-                supporting: SettingsBridge.log-folder + " – computers that sync this folder lose it too";
+                text: @tr("Also delete the glucose log");
+                supporting: @tr("{} – computers that sync this folder lose it too", SettingsBridge.log-folder);
                 checked: true;
             }
             Caption {
-                text: "Export your readings first if you want to keep them. A paired caching server keeps listing this computer until you run  gllu-server revoke  there. The app closes when it is done.";
+                text: @tr("Export your readings first if you want to keep them. A paired caching server keeps listing this computer until you run  gllu-server revoke  there. The app closes when it is done.");
                 font-size: 13px;
             }
             Rectangle { vertical-stretch: 1; }
@@ -2315,12 +2326,12 @@ export component AppWindow inherits Window {
                 spacing: 8px;
                 Rectangle { horizontal-stretch: 1; }
                 MButton {
-                    text: "Cancel";
+                    text: @tr("Cancel");
                     kind: 3;
                     clicked => { SettingsBridge.wipe-open = false; }
                 }
                 MButton {
-                    text: "Delete everything";
+                    text: @tr("Delete everything");
                     kind: 4;
                     icon: Icons.delete;
                     clicked => {
@@ -2338,12 +2349,12 @@ export component AppWindow inherits Window {
             y: (parent.height - self.height) / 2;
             width: 580px;
             height: 420px + (Notes.treatment == 3 ? 70px : 0px) + (Notes.error != "" ? 60px : 0px);
-            title: Notes.id == "" ? "Add note" : "Edit note";
+            title: Notes.id == "" ? @tr("Add note") : @tr("Edit note");
             icon: Icons.note;
             init => { note-text.focus-input(); }
             note-text := TextField {
-                label: "Note";
-                placeholder: "e.g. pizza, 30 min walk";
+                label: @tr("Note");
+                placeholder: @tr("e.g. pizza, 30 min walk");
                 text <=> Notes.text;
                 accepted => { if Notes.can-save { Notes.save(Notes.draft()); } }
             }
@@ -2352,7 +2363,7 @@ export component AppWindow inherits Window {
                 VerticalLayout {
                     horizontal-stretch: 1;
                     spacing: 4px;
-                    Caption { text: "Treatment"; }
+                    Caption { text: @tr("Treatment"); }
                     ComboBox {
                         height: 44px;
                         model: Notes.treatments;
@@ -2362,30 +2373,30 @@ export component AppWindow inherits Window {
                 // plain text: input-type decimal drops a typed comma ("4,5" became 45 u)
                 TextField {
                     width: 100px;
-                    label: "Units";
+                    label: @tr("Units");
                     placeholder: "4.5";
-                    suffix: "u";
+                    suffix: @tr("u");
                     enabled: Notes.treatment != 0;
                     text <=> Notes.units;
                     accepted => { if Notes.can-save { Notes.save(Notes.draft()); } }
                 }
                 TextField {
                     width: 100px;
-                    label: "Carbs";
+                    label: @tr("Carbs");
                     placeholder: "45";
-                    suffix: "g";
+                    suffix: @tr("g");
                     text <=> Notes.carbs;
                     accepted => { if Notes.can-save { Notes.save(Notes.draft()); } }
                 }
             }
             if Notes.treatment == 3: TextField {
-                label: "Custom treatment";
-                placeholder: "e.g. inhaled insulin, glucagon";
+                label: @tr("Custom treatment");
+                placeholder: @tr("e.g. inhaled insulin, glucagon");
                 text <=> Notes.treatment-name;
                 accepted => { if Notes.can-save { Notes.save(Notes.draft()); } }
             }
             TextField {
-                label: "Time (YYYY-MM-DD HH:MM, or just HH:MM for today)";
+                label: @tr("Time (YYYY-MM-DD HH:MM, or just HH:MM for today)");
                 text <=> Notes.when;
                 accepted => { if Notes.can-save { Notes.save(Notes.draft()); } }
             }
@@ -2394,19 +2405,19 @@ export component AppWindow inherits Window {
             HorizontalLayout {
                 spacing: 8px;
                 if Notes.id != "": MButton {
-                    text: "Delete";
+                    text: @tr("Delete");
                     kind: 3;
                     icon: Icons.delete;
                     clicked => { Notes.delete(Notes.id); }
                 }
                 Rectangle { horizontal-stretch: 1; }
                 MButton {
-                    text: "Cancel";
+                    text: @tr("Cancel");
                     kind: 3;
                     clicked => { Notes.open = false; }
                 }
                 MButton {
-                    text: "Save";
+                    text: @tr("Save");
                     kind: 0;
                     icon: Icons.check;
                     enabled: Notes.can-save;
@@ -2422,28 +2433,28 @@ export component AppWindow inherits Window {
             y: (parent.height - self.height) / 2;
             width: 560px;
             height: ExportBridge.error != "" ? 700px : 640px;
-            title: "Export glucose data";
+            title: @tr("Export glucose data");
             icon: Icons.download;
             Caption {
-                text: "A printable PDF report (statistics, AGP, daily profiles, notes) or the readings and notes as a CSV file – it opens in Excel or LibreOffice and can be imported here again.";
+                text: @tr("A printable PDF report (statistics, AGP, daily profiles, notes) or the readings and notes as a CSV file – it opens in Excel or LibreOffice and can be imported here again.");
                 font-size: 13px;
             }
             Segmented {
-                options: ["Last " + [7, 14, 30, 90][Reports.period-index] + " days", "All data"];
+                options: [@tr("Last {} days", [7, 14, 30, 90][Reports.period-index]), @tr("All data")];
                 selected <=> ExportBridge.range;
             }
             HorizontalLayout {
                 alignment: start;
                 spacing: 8px;
                 MButton {
-                    text: "Save PDF…";
+                    text: @tr("Save PDF…");
                     kind: 1;
                     icon: Icons.download;
                     enabled: !ExportBridge.busy;
                     clicked => { ExportBridge.save-pdf(ExportBridge.range); }
                 }
                 MButton {
-                    text: "Save CSV…";
+                    text: @tr("Save CSV…");
                     kind: 1;
                     icon: Icons.download;
                     enabled: !ExportBridge.busy;
@@ -2454,25 +2465,25 @@ export component AppWindow inherits Window {
                 height: 1px;
                 background: Theme.outline-variant;
             }
-            Title { text: "Send by email"; }
+            Title { text: @tr("Send by email"); }
             Caption {
-                text: "The data is packed into a ZIP file encrypted with AES-256 and attached to a new message in your mail program. Tell the recipient the password another way (phone, messenger) – the file opens with 7-Zip, WinRAR or Keka.";
+                text: @tr("The data is packed into a ZIP file encrypted with AES-256 and attached to a new message in your mail program. Tell the recipient the password another way (phone, messenger) – the file opens with 7-Zip, WinRAR or Keka.");
                 font-size: 13px;
             }
             HorizontalLayout {
                 spacing: 12px;
                 TextField {
                     horizontal-stretch: 1;
-                    label: "To (optional)";
+                    label: @tr("To (optional)");
                     placeholder: "doctor@example.com";
                     text <=> ExportBridge.recipient;
                 }
                 VerticalLayout {
                     width: 230px;
                     spacing: 4px;
-                    Caption { text: "Attach"; }
+                    Caption { text: @tr("Attach"); }
                     Segmented {
-                        options: ["CSV", "PDF", "Both"];
+                        options: [@tr("CSV"), @tr("PDF"), @tr("Both")];
                         selected <=> ExportBridge.format;
                     }
                 }
@@ -2481,13 +2492,13 @@ export component AppWindow inherits Window {
                 spacing: 12px;
                 TextField {
                     width: (parent.width - 12px) / 2;
-                    label: "Password (at least 8 characters)";
+                    label: @tr("Password (at least 8 characters)");
                     input-type: password;
                     text <=> ExportBridge.password;
                 }
                 TextField {
                     width: (parent.width - 12px) / 2;
-                    label: "Repeat password";
+                    label: @tr("Repeat password");
                     input-type: password;
                     text <=> ExportBridge.repeat;
                     accepted => { ExportBridge.send(ExportBridge.range, ExportBridge.format, ExportBridge.recipient, ExportBridge.password, ExportBridge.repeat); }
@@ -2505,12 +2516,12 @@ export component AppWindow inherits Window {
                 }
                 Rectangle { horizontal-stretch: 1; }
                 MButton {
-                    text: "Close";
+                    text: @tr("Close");
                     kind: 3;
                     clicked => { ExportBridge.open = false; }
                 }
                 MButton {
-                    text: "Create email";
+                    text: @tr("Create email");
                     kind: 0;
                     icon: Icons.mail;
                     enabled: !ExportBridge.busy && ExportBridge.password != "";
@@ -2524,7 +2535,7 @@ export component AppWindow inherits Window {
         DialogCard {
             width: 480px;
             height: 270px;
-            title: "Action required by LibreLinkUp";
+            title: @tr("Action required by LibreLinkUp");
             Caption {
                 text: root.step-text;
                 font-size: 13px;
@@ -2534,12 +2545,12 @@ export component AppWindow inherits Window {
                 spacing: 8px;
                 Rectangle { horizontal-stretch: 1; }
                 MButton {
-                    text: "Cancel";
+                    text: @tr("Cancel");
                     kind: 3;
                     clicked => { root.decline-step(); }
                 }
                 MButton {
-                    text: "I accept";
+                    text: @tr("I accept");
                     kind: 0;
                     clicked => { root.accept-step(); }
                 }
@@ -2548,7 +2559,7 @@ export component AppWindow inherits Window {
     }
 
     Snackbar {
-        x: (parent.width - self.width) / 2 + 44px;
+        x: (parent.width - self.width) / 2 + 50px;
         y: parent.height - self.height - 24px;
     }
 }

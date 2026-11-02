@@ -1,0 +1,1469 @@
+# German translation of Genius LibreLinkUp (UI and texts made in Rust).
+# The msgids are collected from @tr(...) in ui/*.slint and tr!(...) in the Rust sources.
+msgid ""
+msgstr ""
+"Project-Id-Version: genius-librelinkup\n"
+"Language: de\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+
+msgid " px"
+msgstr " px"
+
+msgid "% time CGM is active"
+msgstr "% Zeit mit aktivem CGM"
+
+msgid "1 hour"
+msgstr "1 Stunde"
+
+msgid "12 h"
+msgstr "12 h"
+
+msgid "14 d"
+msgstr "14 T"
+
+msgid "2 hours"
+msgstr "2 Stunden"
+
+msgid "24 h"
+msgstr "24 h"
+
+msgid "3 h"
+msgstr "3 h"
+
+msgid "30 d"
+msgstr "30 T"
+
+msgid "30 minutes"
+msgstr "30 Minuten"
+
+msgid "6 h"
+msgstr "6 h"
+
+msgid "7 d"
+msgstr "7 T"
+
+msgid "90 d"
+msgstr "90 T"
+
+msgid "A printable PDF report (statistics, AGP, daily profiles, notes) or the readings and notes as a CSV file – it opens in Excel or LibreOffice and can be imported here again."
+msgstr "Ein druckbarer PDF-Bericht (Statistik, AGP, Tagesprofile, Notizen) oder die Messwerte und Notizen als CSV-Datei – sie öffnet sich in Excel oder LibreOffice und lässt sich hier wieder importieren."
+
+msgid "ADAG formula"
+msgstr "ADAG-Formel"
+
+msgid "API log"
+msgstr "API-Protokoll"
+
+msgid "About"
+msgstr "Über"
+
+msgid "Above range"
+msgstr "Über dem Bereich"
+
+msgid "Accent colour"
+msgstr "Akzentfarbe"
+
+msgid "Accept the updated documents in the official LibreLinkUp app, then sign in again."
+msgstr "Akzeptiere die aktualisierten Dokumente in der offiziellen LibreLinkUp-App und melde dich dann erneut an."
+
+msgid "Accepting failed: {}"
+msgstr "Akzeptieren fehlgeschlagen: {}"
+
+msgid "Account"
+msgstr "Konto"
+
+msgid "Action required by LibreLinkUp"
+msgstr "LibreLinkUp verlangt eine Aktion"
+
+msgid "Add note"
+msgstr "Notiz hinzufügen"
+
+msgid "Advanced: client product header"
+msgstr "Erweitert: Client-Produkt-Header"
+
+msgid "Advanced: client version (raised automatically when required)"
+msgstr "Erweitert: Client-Version (wird bei Bedarf automatisch erhöht)"
+
+msgid "Alerts resumed"
+msgstr "Alarme wieder aktiv"
+
+msgid "Alerts snoozed until {}"
+msgstr "Alarme stumm bis {}"
+
+msgid "Alerts snoozed until {} – urgent lows still notify"
+msgstr "Alarme stumm bis {} – dringende Unterzuckerungen melden sich trotzdem"
+
+msgid "All data"
+msgstr "Alle Daten"
+
+msgid "Also delete the glucose log"
+msgstr "Auch das Glukose-Protokoll löschen"
+
+msgid "Ambulatory glucose profile (AGP)"
+msgstr "Ambulantes Glukoseprofil (AGP)"
+
+msgid "An always-on gllu-server keeps polling while this computer is off and fills the gaps here."
+msgstr "Ein ständig laufender gllu-server fragt weiter ab, während dieser Computer aus ist, und füllt hier die Lücken."
+
+msgid "Appearance"
+msgstr "Darstellung"
+
+msgid "As a second tray icon next to the number"
+msgstr "Als zweites Tray-Symbol neben der Zahl"
+
+msgid "At this rate about {} in {} minutes."
+msgstr "In diesem Tempo etwa {} in {} Minuten."
+
+msgid "Attach"
+msgstr "Anhängen"
+
+msgid "Auto"
+msgstr "Auto"
+
+msgid "Automatic"
+msgstr "Automatisch"
+
+msgid "Automatic (recommended)"
+msgstr "Automatisch (empfohlen)"
+
+msgid "Autostart: {}"
+msgstr "Autostart: {}"
+
+msgid "Average"
+msgstr "Durchschnitt"
+
+msgid "Average glucose"
+msgstr "Durchschnittliche Glukose"
+
+msgid "Averages count only the days with entries. The totals come from the notes and are only as complete as they are."
+msgstr "Die Durchschnitte zählen nur Tage mit Einträgen. Die Summen stammen aus den Notizen und sind nur so vollständig wie diese."
+
+msgid "Averages count only the days with entries. The totals come from your notes and are only as complete as they are."
+msgstr "Die Durchschnitte zählen nur Tage mit Einträgen. Die Summen stammen aus deinen Notizen und sind nur so vollständig wie diese."
+
+msgid "Back"
+msgstr "Zurück"
+
+msgid "Below range"
+msgstr "Unter dem Bereich"
+
+msgid "Black"
+msgstr "Schwarz"
+
+msgid "Both"
+msgstr "Beides"
+
+msgid "Browse…"
+msgstr "Durchsuchen…"
+
+msgid "CSV"
+msgstr "CSV"
+
+msgid "Caching server"
+msgstr "Caching-Server"
+
+msgid "Cancel"
+msgstr "Abbrechen"
+
+msgid "Carbohydrates"
+msgstr "Kohlenhydrate"
+
+msgid "Carbs"
+msgstr "KH"
+
+msgid "Carbs (grams)"
+msgstr "Kohlenhydrate (Gramm)"
+
+msgid "Carbs (max {} g)"
+msgstr "Kohlenhydrate (max. {} g)"
+
+msgid "Carbs {} g"
+msgstr "KH {} g"
+
+msgid "Change passphrase"
+msgstr "Passphrase ändern"
+
+msgid "Changes apply immediately and are saved automatically."
+msgstr "Änderungen gelten sofort und werden automatisch gespeichert."
+
+msgid "Changing by {} per minute."
+msgstr "Änderung um {} pro Minute."
+
+msgid "Changing or removing the passphrase needs the current one."
+msgstr "Zum Ändern oder Entfernen der Passphrase wird die aktuelle benötigt."
+
+msgid "Check for updates automatically"
+msgstr "Automatisch nach Updates suchen"
+
+msgid "Check now"
+msgstr "Jetzt prüfen"
+
+msgid "Checking for updates…"
+msgstr "Suche nach Updates…"
+
+msgid "Choose a passphrase to encrypt the log files. Leave it empty to store them unencrypted."
+msgstr "Wähle eine Passphrase, um die Protokolldateien zu verschlüsseln. Leer lassen, um sie unverschlüsselt zu speichern."
+
+msgid "Choose the glucose log folder"
+msgstr "Ordner für das Glukose-Protokoll wählen"
+
+msgid "Circle"
+msgstr "Kreis"
+
+msgid "Clear"
+msgstr "Leeren"
+
+msgid "Close"
+msgstr "Schließen"
+
+msgid "Colours"
+msgstr "Farben"
+
+msgid "Condensed"
+msgstr "Schmal"
+
+msgid "Connect to a caching server"
+msgstr "Mit einem Caching-Server verbinden"
+
+msgid "Connecting…"
+msgstr "Verbinde…"
+
+msgid "Continue without log"
+msgstr "Ohne Protokoll fortfahren"
+
+msgid "Corners"
+msgstr "Ecken"
+
+msgid "Could not save the password in the system keychain"
+msgstr "Das Passwort konnte nicht im Schlüsselbund des Systems gespeichert werden"
+
+msgid "Create"
+msgstr "Anlegen"
+
+msgid "Create email"
+msgstr "E-Mail erstellen"
+
+msgid "Current passphrase"
+msgstr "Aktuelle Passphrase"
+
+msgid "Custom treatment"
+msgstr "Eigene Behandlung"
+
+msgid "Custom…"
+msgstr "Eigene…"
+
+msgid "Daily glucose profiles"
+msgstr "Tägliche Glukoseprofile"
+
+msgid "Daily glucose profiles ({} of {})"
+msgstr "Tägliche Glukoseprofile ({} von {})"
+
+msgid "Dark"
+msgstr "Dunkel"
+
+msgid "Days with entries"
+msgstr "Tage mit Einträgen"
+
+msgid "Default data folder"
+msgstr "Standard-Datenordner"
+
+msgid "Delete"
+msgstr "Löschen"
+
+msgid "Delete all local data?"
+msgstr "Alle lokalen Daten löschen?"
+
+msgid "Delete all local data…"
+msgstr "Alle lokalen Daten löschen…"
+
+msgid "Delete everything"
+msgstr "Alles löschen"
+
+msgid "Delete local data"
+msgstr "Lokale Daten löschen"
+
+msgid "Demo mode stores nothing permanent – there is nothing to delete"
+msgstr "Der Demomodus speichert nichts dauerhaft – es gibt nichts zu löschen"
+
+msgid "Demo mode – synthetic data"
+msgstr "Demomodus – synthetische Daten"
+
+msgid "Developer mode"
+msgstr "Entwicklermodus"
+
+msgid "Disclaimer"
+msgstr "Haftungsausschluss"
+
+msgid "Display"
+msgstr "Anzeige"
+
+msgid "Documentation"
+msgstr "Dokumentation"
+
+msgid "Dots"
+msgstr "Punkte"
+
+msgid "Download"
+msgstr "Herunterladen"
+
+msgid "Download failed: {}"
+msgstr "Download fehlgeschlagen: {}"
+
+msgid "Downloading {}…"
+msgstr "Lade {} herunter…"
+
+msgid "Downloads for Windows and Linux and what changed in each version"
+msgstr "Downloads für Windows und Linux und was sich in jeder Version geändert hat"
+
+msgid "Drop"
+msgstr "Tropfen"
+
+msgid "Edit note"
+msgstr "Notiz bearbeiten"
+
+msgid "Email"
+msgstr "E-Mail"
+
+msgid "Email created – tell the recipient the password another way"
+msgstr "E-Mail erstellt – teile dem Empfänger das Passwort auf anderem Weg mit"
+
+msgid "Encrypt log"
+msgstr "Protokoll verschlüsseln"
+
+msgid "Encryption removed"
+msgstr "Verschlüsselung entfernt"
+
+msgid "Estimated HbA1c (eA1c)"
+msgstr "Geschätzter HbA1c (eA1c)"
+
+msgid "Evening 16–21"
+msgstr "Abend 16–21"
+
+msgid "Export failed: {}"
+msgstr "Export fehlgeschlagen: {}"
+
+msgid "Export glucose data"
+msgstr "Glukosedaten exportieren"
+
+msgid "Export settings…"
+msgstr "Einstellungen exportieren…"
+
+msgid "Export your readings first if you want to keep them. A paired caching server keeps listing this computer until you run  gllu-server revoke  there. The app closes when it is done."
+msgstr "Exportiere deine Messwerte vorher, wenn du sie behalten willst. Ein gekoppelter Caching-Server führt diesen Computer weiter, bis du dort  gllu-server revoke  ausführst. Die App schließt sich danach."
+
+msgid "Exported {} and {}"
+msgstr "{} und {} exportiert"
+
+msgid "Export…"
+msgstr "Exportieren…"
+
+msgid "Failed: {}"
+msgstr "Fehlgeschlagen: {}"
+
+msgid "Falling"
+msgstr "Fallend"
+
+msgid "Falling fast"
+msgstr "Schnell fallend"
+
+msgid "Falling fast: {} {}"
+msgstr "Fällt schnell: {} {}"
+
+msgid "Falling quickly"
+msgstr "Schnell fallend"
+
+msgid "Features, reports, the caching server and where your data is stored"
+msgstr "Funktionen, Berichte, der Caching-Server und wo deine Daten gespeichert sind"
+
+msgid "Fill the current value card with the range colour"
+msgstr "Karte mit dem aktuellen Wert in der Bereichsfarbe füllen"
+
+msgid "Fixed scale 0–{} {}. Markers under a day: blue insulin, orange carbs, grey other notes."
+msgstr "Feste Skala 0–{} {}. Markierungen unter einem Tag: blau Insulin, orange Kohlenhydrate, grau sonstige Notizen."
+
+msgid "Font"
+msgstr "Schrift"
+
+msgid "Fri"
+msgstr "Fr"
+
+msgid "From"
+msgstr "Von"
+
+msgid "GMI"
+msgstr "GMI"
+
+msgid "GMI (approximate HbA1c)"
+msgstr "GMI (ungefährer HbA1c)"
+
+msgid "GNU General Public License v3.0"
+msgstr "GNU General Public License v3.0"
+
+msgid "Generated {}"
+msgstr "Erstellt {}"
+
+msgid "Genius LibreLinkUp is an unofficial tool and not affiliated with Abbott. It uses an undocumented API that may change at any time. Do not make treatment decisions based on this app."
+msgstr "Genius LibreLinkUp ist ein inoffizielles Werkzeug und steht in keiner Verbindung zu Abbott. Es nutzt eine undokumentierte Schnittstelle, die sich jederzeit ändern kann. Triff keine Therapieentscheidungen auf Grundlage dieser App."
+
+msgid "Genius LibreLinkUp is an unofficial tool and not affiliated with Abbott. It uses the undocumented LibreLinkUp API, which can change at any time. Never make treatment decisions based on this app – use your sensor reader or the official app."
+msgstr "Genius LibreLinkUp ist ein inoffizielles Werkzeug und steht in keiner Verbindung zu Abbott. Es nutzt die undokumentierte LibreLinkUp-Schnittstelle, die sich jederzeit ändern kann. Triff nie Therapieentscheidungen auf Grundlage dieser App – verwende dein Lesegerät oder die offizielle App."
+
+msgid "Genius LibreLinkUp is up to date"
+msgstr "Genius LibreLinkUp ist aktuell"
+
+msgid "Genius LibreLinkUp {} is available – open Settings → Updates."
+msgstr "Genius LibreLinkUp {} ist verfügbar – öffne Einstellungen → Updates."
+
+msgid "Genius LibreLinkUp · not a medical device – do not base treatment decisions on this report"
+msgstr "Genius LibreLinkUp · kein Medizinprodukt – triff keine Therapieentscheidungen auf Grundlage dieses Berichts"
+
+msgid "Genius LibreLinkUp – no data"
+msgstr "Genius LibreLinkUp – keine Daten"
+
+msgid "GitHub issues – please mention your version and operating system"
+msgstr "GitHub-Issues – bitte nenne deine Version und dein Betriebssystem"
+
+msgid "Glucose"
+msgstr "Glukose"
+
+msgid "Glucose data {} – {}"
+msgstr "Glukosedaten {} – {}"
+
+msgid "Glucose graph"
+msgstr "Glukosegraph"
+
+msgid "Glucose log & reports"
+msgstr "Glukose-Protokoll & Berichte"
+
+msgid "Glucose log created"
+msgstr "Glukose-Protokoll angelegt"
+
+msgid "Glucose management indicator (GMI)"
+msgstr "Glukose-Management-Indikator (GMI)"
+
+msgid "Glucose pattern insights"
+msgstr "Glukosemuster"
+
+msgid "Glucose range colours (graphs, value card and tray)"
+msgstr "Farben der Glukosebereiche (Graphen, Wertkarte und Tray)"
+
+msgid "Glucose report"
+msgstr "Glukosebericht"
+
+msgid "Glucose report for {}"
+msgstr "Glukosebericht für {}"
+
+msgid "Glucose report {}"
+msgstr "Glukosebericht {}"
+
+msgid "Glucose report {} – {}"
+msgstr "Glukosebericht {} – {}"
+
+msgid "Glucose statistics"
+msgstr "Glukosestatistik"
+
+msgid "Glucose variability (CV)"
+msgstr "Glukosevariabilität (VK)"
+
+msgid "Goals (most adults with type 1/2): target > 70 %, low < 4 %, very low < 1 %, high < 25 %, very high < 5 %."
+msgstr "Ziele (die meisten Erwachsenen mit Typ 1/2): Zielbereich > 70 %, niedrig < 4 %, sehr niedrig < 1 %, hoch < 25 %, sehr hoch < 5 %."
+
+msgid "Goals for most adults with type 1 or type 2 diabetes: target range > 70 %, low < 4 %, very low < 1 %, high < 25 %, very high < 5 % (international consensus on time in range)."
+msgstr "Ziele für die meisten Erwachsenen mit Typ-1- oder Typ-2-Diabetes: Zielbereich > 70 %, niedrig < 4 %, sehr niedrig < 1 %, hoch < 25 %, sehr hoch < 5 % (internationaler Konsens zur Zeit im Zielbereich)."
+
+msgid "Green: no pattern found, yellow: moderate, red: high. A simplified, informational approximation of LibreView's pattern insights – not medical advice."
+msgstr "Grün: kein Muster gefunden, gelb: mäßig, rot: hoch. Eine vereinfachte, informative Annäherung an die Glukosemuster von LibreView – keine medizinische Beratung."
+
+msgid "HIGH"
+msgstr "HOCH"
+
+msgid "Hello,\n\nattached are my glucose data from {} to {} ({} and {}) as an encrypted ZIP file. I will send you the password separately.\n\nThe file opens with 7-Zip, WinRAR or Keka.\n\nCreated with Genius LibreLinkUp (not a medical device).\n"
+msgstr "Hallo,\n\nanbei meine Glukosedaten vom {} bis {} ({} und {}) als verschlüsselte ZIP-Datei. Das Passwort schicke ich dir getrennt.\n\nDie Datei lässt sich mit 7-Zip, WinRAR oder Keka öffnen.\n\nErstellt mit Genius LibreLinkUp (kein Medizinprodukt).\n"
+
+msgid "High"
+msgstr "Hoch"
+
+msgid "High episodes (15 min or longer)"
+msgstr "Hochphasen (15 min oder länger)"
+
+msgid "High glucose"
+msgstr "Hohe Glukose"
+
+msgid "High glucose: {} {}"
+msgstr "Hohe Glukose: {} {}"
+
+msgid "Highest"
+msgstr "Höchster Wert"
+
+msgid "I accept"
+msgstr "Ich akzeptiere"
+
+msgid "IN RANGE"
+msgstr "IM BEREICH"
+
+msgid "Import & export"
+msgstr "Import & Export"
+
+msgid "Import failed: {}"
+msgstr "Import fehlgeschlagen: {}"
+
+msgid "Import readings (CSV / LibreView)…"
+msgstr "Messwerte importieren (CSV / LibreView)…"
+
+msgid "Import settings…"
+msgstr "Einstellungen importieren…"
+
+msgid "Imported {} and {}"
+msgstr "{} und {} importiert"
+
+msgid "In range"
+msgstr "Im Bereich"
+
+msgid "Inside the number icon – the number gets a little narrower to make room"
+msgstr "Im Zahlensymbol – die Zahl wird dafür etwas schmaler"
+
+msgid "Installation failed: {}"
+msgstr "Installation fehlgeschlagen: {}"
+
+msgid "Installed – restart the app to use the new version"
+msgstr "Installiert – starte die App neu, um die neue Version zu verwenden"
+
+msgid "Installing…"
+msgstr "Installiere…"
+
+msgid "Insulin & carbs"
+msgstr "Insulin & Kohlenhydrate"
+
+msgid "Insulin (max {} u)"
+msgstr "Insulin (max. {} IE)"
+
+msgid "Insulin (units)"
+msgstr "Insulin (Einheiten)"
+
+msgid "Keep a local log of all readings"
+msgstr "Alle Messwerte lokal protokollieren"
+
+msgid "Keeps the number large and readable. Windows may first put the new icon among the hidden icons – drag it next to the value to keep it visible."
+msgstr "Hält die Zahl groß und lesbar. Windows legt das neue Symbol eventuell zuerst zu den ausgeblendeten Symbolen – zieh es neben den Wert, damit es sichtbar bleibt."
+
+msgid "LOW"
+msgstr "NIEDRIG"
+
+msgid "Language"
+msgstr "Sprache"
+
+msgid "Last 24 hours"
+msgstr "Letzte 24 Stunden"
+
+msgid "Last reading {} at {}."
+msgstr "Letzter Messwert {} um {}."
+
+msgid "Last sync {}{}"
+msgstr "Zuletzt synchronisiert {}{}"
+
+msgid "Last {} days"
+msgstr "Letzte {} Tage"
+
+msgid "Last {} hours"
+msgstr "Letzte {} Stunden"
+
+msgid "Late 21–24"
+msgstr "Spät 21–24"
+
+msgid "Layout"
+msgstr "Layout"
+
+msgid "LibreLinkUp asks you to accept {} ({}). You can review the document in the official LibreLinkUp app. Do you accept it so this app can continue?"
+msgstr "LibreLinkUp bittet dich, {} ({}) zu akzeptieren. Du kannst das Dokument in der offiziellen LibreLinkUp-App ansehen. Akzeptierst du es, damit diese App weitermachen kann?"
+
+msgid "LibreLinkUp rate limit – next try in {} s"
+msgstr "LibreLinkUp-Anfragelimit – nächster Versuch in {} s"
+
+msgid "LibreLinkUp rejected the saved password. Please sign in again."
+msgstr "LibreLinkUp hat das gespeicherte Passwort abgelehnt. Bitte melde dich erneut an."
+
+msgid "LibreLinkUp server – automatic follows Abbott's regional redirects"
+msgstr "LibreLinkUp-Server – automatisch folgt den regionalen Weiterleitungen von Abbott"
+
+msgid "Licence"
+msgstr "Lizenz"
+
+msgid "Light"
+msgstr "Hell"
+
+msgid "Likelihood of low"
+msgstr "Wahrscheinlichkeit für Unterzucker"
+
+msgid "Line"
+msgstr "Linie"
+
+msgid "Line + dots"
+msgstr "Linie + Punkte"
+
+msgid "Log encrypted with the new passphrase"
+msgstr "Protokoll mit der neuen Passphrase verschlüsselt"
+
+msgid "Log error: {}"
+msgstr "Protokollfehler: {}"
+
+msgid "Log folder – choose a synced folder (Nextcloud, OneDrive, …) to share it between machines"
+msgstr "Protokollordner – wähle einen synchronisierten Ordner (Nextcloud, OneDrive, …), um ihn zwischen Geräten zu teilen"
+
+msgid "Logging is off."
+msgstr "Protokollierung ist aus."
+
+msgid "Long {} u"
+msgstr "Basal {} IE"
+
+msgid "Long-acting insulin"
+msgstr "Langwirksames Insulin"
+
+msgid "Low"
+msgstr "Niedrig"
+
+msgid "Low episodes (15 min or longer)"
+msgstr "Unterzuckerphasen (15 min oder länger)"
+
+msgid "Low expected: {} {}"
+msgstr "Unterzucker erwartet: {} {}"
+
+msgid "Low glucose"
+msgstr "Niedrige Glukose"
+
+msgid "Low glucose: {} {}"
+msgstr "Niedrige Glukose: {} {}"
+
+msgid "Low, high and no data; 0 = notify only once per episode"
+msgstr "Niedrig, hoch und keine Daten; 0 = nur einmal pro Episode melden"
+
+msgid "Lowest"
+msgstr "Niedrigster Wert"
+
+msgid "Measured {}."
+msgstr "Gemessen {}."
+
+msgid "Median (line) with 25–75 % (dark) and 5–95 % (light) percentiles, as if all days happened in a single day."
+msgstr "Median (Linie) mit 25–75 % (dunkel) und 5–95 % (hell) Perzentilen, als hätten alle Tage an einem einzigen Tag stattgefunden."
+
+msgid "Median (line) with the 25–75 % (dark) and 5–95 % (light) percentiles of all days, as if they happened in a single day."
+msgstr "Median (Linie) mit den 25–75 % (dunkel) und 5–95 % (hell) Perzentilen aller Tage, als hätten sie an einem einzigen Tag stattgefunden."
+
+msgid "Median vs. goal"
+msgstr "Median vs. Ziel"
+
+msgid "Midday 11–16"
+msgstr "Mittag 11–16"
+
+msgid "Mon"
+msgstr "Mo"
+
+msgid "Mono"
+msgstr "Mono"
+
+msgid "Morning 06–11"
+msgstr "Morgen 06–11"
+
+msgid "My glucose"
+msgstr "Meine Glukose"
+
+msgid "NO DATA"
+msgstr "KEINE DATEN"
+
+msgid "Needed for reports and HbA1c – LibreLinkUp only keeps 12 hours"
+msgstr "Nötig für Berichte und HbA1c – LibreLinkUp speichert nur 12 Stunden"
+
+msgid "New passphrase"
+msgstr "Neue Passphrase"
+
+msgid "Night 00–06"
+msgstr "Nacht 00–06"
+
+msgid "No LibreLinkUp connection found. Accept a sharing invitation in the LibreLinkUp app first."
+msgstr "Keine LibreLinkUp-Verbindung gefunden. Nimm zuerst eine Einladung zum Teilen in der LibreLinkUp-App an."
+
+msgid "No data yet"
+msgstr "Noch keine Daten"
+
+msgid "No insulin or carbs were recorded in the notes of this period."
+msgstr "In den Notizen dieses Zeitraums wurden weder Insulin noch Kohlenhydrate erfasst."
+
+msgid "No insulin or carbs were recorded in this period. Add them to a note (Add note on the Glucose page, or click the graph) and they are summed up here."
+msgstr "In diesem Zeitraum wurden weder Insulin noch Kohlenhydrate erfasst. Trage sie in eine Notiz ein (Notiz hinzufügen auf der Glukose-Seite oder Klick in den Graphen), dann werden sie hier zusammengezählt."
+
+msgid "No mail program took the file – attach the ZIP by hand"
+msgstr "Kein Mailprogramm hat die Datei übernommen – hänge die ZIP-Datei von Hand an"
+
+msgid "No new data"
+msgstr "Keine neuen Daten"
+
+msgid "No new glucose data"
+msgstr "Keine neuen Glukosedaten"
+
+msgid "No notes on this day – click the graph to add one."
+msgstr "Keine Notizen an diesem Tag – klicke in den Graphen, um eine hinzuzufügen."
+
+msgid "No notes on this day."
+msgstr "Keine Notizen an diesem Tag."
+
+msgid "No release has been published yet"
+msgstr "Es wurde noch keine Version veröffentlicht"
+
+msgid "None"
+msgstr "Keine"
+
+msgid "Not enough data yet. Keep the app running or import a LibreView CSV export (Settings → Import readings)."
+msgstr "Noch nicht genug Daten. Lass die App laufen oder importiere einen LibreView-CSV-Export (Einstellungen → Messwerte importieren)."
+
+msgid "Not signed in to LibreLinkUp – values come from the caching server"
+msgstr "Nicht bei LibreLinkUp angemeldet – die Werte kommen vom Caching-Server"
+
+msgid "Note"
+msgstr "Notiz"
+
+msgid "Note added"
+msgstr "Notiz hinzugefügt"
+
+msgid "Note deleted"
+msgstr "Notiz gelöscht"
+
+msgid "Note saved"
+msgstr "Notiz gespeichert"
+
+msgid "Notes"
+msgstr "Notizen"
+
+msgid "Notifications"
+msgstr "Benachrichtigungen"
+
+msgid "Notify when no reading arrived for a while"
+msgstr "Melden, wenn eine Weile kein Messwert kam"
+
+msgid "Notify when the trend of the last 20 minutes reaches the low threshold soon"
+msgstr "Melden, wenn der Trend der letzten 20 Minuten bald die Unterzuckergrenze erreicht"
+
+msgid "Notify when the value is at or above the threshold"
+msgstr "Melden, wenn der Wert die Schwelle erreicht oder überschreitet"
+
+msgid "Notify when the value is at or below the threshold"
+msgstr "Melden, wenn der Wert die Schwelle erreicht oder unterschreitet"
+
+msgid "Number only"
+msgstr "Nur Zahl"
+
+msgid "On the server run  gllu-server pair  (Docker: docker exec gllu gllu-server pair) and paste the code. The code pins the server's certificate, so the connection cannot be intercepted."
+msgstr "Führe auf dem Server  gllu-server pair  aus (Docker: docker exec gllu gllu-server pair) und füge den Code ein. Der Code bindet das Zertifikat des Servers, daher kann die Verbindung nicht abgefangen werden."
+
+msgid "Only urgent lows (below 3.0 mmol/L · 54 mg/dL) notify; anything else in this time is not shown later either"
+msgstr "Nur dringende Unterzuckerungen (unter 3,0 mmol/L · 54 mg/dL) melden sich; alles andere in dieser Zeit wird auch später nicht angezeigt"
+
+msgid "Open"
+msgstr "Öffnen"
+
+msgid "Open log folder"
+msgstr "Protokollordner öffnen"
+
+msgid "Open source on GitHub"
+msgstr "Open Source auf GitHub"
+
+msgid "PDF"
+msgstr "PDF"
+
+msgid "Page {} of {}"
+msgstr "Seite {} von {}"
+
+msgid "Pair"
+msgstr "Koppeln"
+
+msgid "Paired with {}"
+msgstr "Gekoppelt mit {}"
+
+msgid "Paired – fetching history…"
+msgstr "Gekoppelt – lade Verlauf…"
+
+msgid "Pairing code"
+msgstr "Kopplungscode"
+
+msgid "Pairing failed: {}"
+msgstr "Kopplung fehlgeschlagen: {}"
+
+msgid "Passphrase"
+msgstr "Passphrase"
+
+msgid "Passphrase to encrypt the log"
+msgstr "Passphrase zum Verschlüsseln des Protokolls"
+
+msgid "Password"
+msgstr "Passwort"
+
+msgid "Password (at least 8 characters)"
+msgstr "Passwort (mindestens 8 Zeichen)"
+
+msgid "Please sign in again."
+msgstr "Bitte melde dich erneut an."
+
+msgid "Point at a day for its totals"
+msgstr "Zeige auf einen Tag für seine Summen"
+
+msgid "Point at the graph for values"
+msgstr "Zeige auf den Graphen für Werte"
+
+msgid "Point at the graph for values · click it to add a note there"
+msgstr "Zeige auf den Graphen für Werte · klicke, um dort eine Notiz hinzuzufügen"
+
+msgid "Predicted low"
+msgstr "Vorhergesagter Unterzucker"
+
+msgid "Protect your glucose log"
+msgstr "Schütze dein Glukose-Protokoll"
+
+msgid "Quiet hours"
+msgstr "Ruhezeit"
+
+msgid "Quit"
+msgstr "Beenden"
+
+msgid "Rapid {} u"
+msgstr "Bolus {} IE"
+
+msgid "Rapid-acting insulin"
+msgstr "Schnellwirksames Insulin"
+
+msgid "Rate per minute"
+msgstr "Rate pro Minute"
+
+msgid "Readings"
+msgstr "Messwerte"
+
+msgid "Refresh every"
+msgstr "Aktualisieren alle"
+
+msgid "Refresh now"
+msgstr "Jetzt aktualisieren"
+
+msgid "Regular"
+msgstr "Normal"
+
+msgid "Release page"
+msgstr "Release-Seite"
+
+msgid "Releases & changelog"
+msgstr "Versionen & Änderungen"
+
+msgid "Remember in the system keychain"
+msgstr "Im Schlüsselbund des Systems merken"
+
+msgid "Remember password in the system keychain"
+msgstr "Passwort im Schlüsselbund des Systems merken"
+
+msgid "Remember the log passphrase in the system keychain"
+msgstr "Protokoll-Passphrase im Schlüsselbund des Systems merken"
+
+msgid "Remove encryption"
+msgstr "Verschlüsselung entfernen"
+
+msgid "Removes everything this app stored on this computer: settings, logs, the keychain entries and, if you choose, the glucose log. The app closes afterwards."
+msgstr "Entfernt alles, was diese App auf diesem Computer gespeichert hat: Einstellungen, Protokolle, die Schlüsselbund-Einträge und auf Wunsch das Glukose-Protokoll. Die App schließt sich danach."
+
+msgid "Repeat active alerts"
+msgstr "Aktive Alarme wiederholen"
+
+msgid "Repeat password"
+msgstr "Passwort wiederholen"
+
+msgid "Report a problem or suggest a feature"
+msgstr "Ein Problem melden oder eine Funktion vorschlagen"
+
+msgid "Report saved to {}"
+msgstr "Bericht gespeichert unter {}"
+
+msgid "Reports"
+msgstr "Berichte"
+
+msgid "Reset range colours"
+msgstr "Bereichsfarben zurücksetzen"
+
+msgid "Restarting into version {}…"
+msgstr "Starte neu in Version {}…"
+
+msgid "Resume alerts"
+msgstr "Alarme fortsetzen"
+
+msgid "Revert"
+msgstr "Zurücksetzen"
+
+msgid "Rising"
+msgstr "Steigend"
+
+msgid "Rising fast"
+msgstr "Schnell steigend"
+
+msgid "Rising fast: {} {}"
+msgstr "Steigt schnell: {} {}"
+
+msgid "Rising quickly"
+msgstr "Schnell steigend"
+
+msgid "Round"
+msgstr "Rund"
+
+msgid "Rounded"
+msgstr "Abgerundet"
+
+msgid "Run  gllu-server pair  on your server and paste the pairing code. This computer then reads all values from the server and needs no LibreLinkUp login."
+msgstr "Führe  gllu-server pair  auf deinem Server aus und füge den Kopplungscode ein. Dieser Computer liest dann alle Werte vom Server und braucht keine LibreLinkUp-Anmeldung."
+
+msgid "Sat"
+msgstr "Sa"
+
+msgid "Save"
+msgstr "Speichern"
+
+msgid "Save CSV…"
+msgstr "CSV speichern…"
+
+msgid "Save PDF…"
+msgstr "PDF speichern…"
+
+msgid "Saved"
+msgstr "Gespeichert"
+
+msgid "Secrets and personal identifiers are redacted. File: {}"
+msgstr "Geheimnisse und persönliche Kennungen sind geschwärzt. Datei: {}"
+
+msgid "Select a request (text can be selected and copied)"
+msgstr "Wähle eine Anfrage (der Text kann markiert und kopiert werden)"
+
+msgid "Send by email"
+msgstr "Per E-Mail senden"
+
+msgid "Sensor active"
+msgstr "Sensor aktiv"
+
+msgid "Sensor {}"
+msgstr "Sensor {}"
+
+msgid "Sent by gllu-server (Genius LibreLinkUp) – not a medical device. Do not make treatment decisions based on this report."
+msgstr "Gesendet von gllu-server (Genius LibreLinkUp) – kein Medizinprodukt. Triff keine Therapieentscheidungen auf Grundlage dieses Berichts."
+
+msgid "Server"
+msgstr "Server"
+
+msgid "Server: {}"
+msgstr "Server: {}"
+
+msgid "Settings"
+msgstr "Einstellungen"
+
+msgid "Settings exported to {}"
+msgstr "Einstellungen exportiert nach {}"
+
+msgid "Settings imported"
+msgstr "Einstellungen importiert"
+
+msgid "Shape"
+msgstr "Form"
+
+msgid "Share of the day in the target range and the course of each day. Point at a day to read values, click it for details and notes."
+msgstr "Anteil des Tages im Zielbereich und Verlauf jedes Tages. Zeige auf einen Tag, um Werte abzulesen, klicke für Details und Notizen."
+
+msgid "Show Genius LibreLinkUp"
+msgstr "Genius LibreLinkUp anzeigen"
+
+msgid "Show the 24-hour statistics card"
+msgstr "Karte mit der 24-Stunden-Statistik anzeigen"
+
+msgid "Show the arrow as a separate tray icon"
+msgstr "Pfeil als eigenes Tray-Symbol anzeigen"
+
+msgid "Show the trend arrow"
+msgstr "Trendpfeil anzeigen"
+
+msgid "Shows the API log (secrets and personal data redacted)"
+msgstr "Zeigt das API-Protokoll (Geheimnisse und persönliche Daten geschwärzt)"
+
+msgid "Sign in"
+msgstr "Anmelden"
+
+msgid "Sign in to LibreLinkUp to poll from this computer."
+msgstr "Melde dich bei LibreLinkUp an, um von diesem Computer aus abzufragen."
+
+msgid "Sign in with your LibreLinkUp (follower) account."
+msgstr "Melde dich mit deinem LibreLinkUp-Konto (Follower) an."
+
+msgid "Sign out"
+msgstr "Abmelden"
+
+msgid "Signal lost – no recent reading"
+msgstr "Signal verloren – kein aktueller Messwert"
+
+msgid "Signed in as {}"
+msgstr "Angemeldet als {}"
+
+msgid "Skip this version"
+msgstr "Diese Version überspringen"
+
+msgid "Snooze alerts"
+msgstr "Alarme stummschalten"
+
+msgid "Snooze alerts from the tray icon's menu (30 minutes to 2 hours). Urgent lows are never snoozed."
+msgstr "Alarme im Menü des Tray-Symbols stummschalten (30 Minuten bis 2 Stunden). Dringende Unterzuckerungen werden nie stummgeschaltet."
+
+msgid "Some data could not be deleted: {}"
+msgstr "Einige Daten konnten nicht gelöscht werden: {}"
+
+msgid "Source code"
+msgstr "Quellcode"
+
+msgid "Square"
+msgstr "Quadrat"
+
+msgid "Stable"
+msgstr "Stabil"
+
+msgid "Standard deviation"
+msgstr "Standardabweichung"
+
+msgid "Start minimized to tray"
+msgstr "Minimiert im Tray starten"
+
+msgid "Start when I sign in"
+msgstr "Bei der Anmeldung starten"
+
+msgid "Style"
+msgstr "Stil"
+
+msgid "Sun"
+msgstr "So"
+
+msgid "Sync failed: {}"
+msgstr "Synchronisierung fehlgeschlagen: {}"
+
+msgid "Sync now"
+msgstr "Jetzt synchronisieren"
+
+msgid "Syncing…"
+msgstr "Synchronisiere…"
+
+msgid "System"
+msgstr "System"
+
+msgid "Target range"
+msgstr "Zielbereich"
+
+msgid "Target range high"
+msgstr "Zielbereich oben"
+
+msgid "Target range low"
+msgstr "Zielbereich unten"
+
+msgid "Text colour"
+msgstr "Textfarbe"
+
+msgid "The code, the documentation and every release are public. Ideas, bug reports and pull requests are welcome."
+msgstr "Der Code, die Dokumentation und jede Version sind öffentlich. Ideen, Fehlerberichte und Pull-Requests sind willkommen."
+
+msgid "The data is packed into a ZIP file encrypted with AES-256 and attached to a new message in your mail program. Tell the recipient the password another way (phone, messenger) – the file opens with 7-Zip, WinRAR or Keka."
+msgstr "Die Daten werden in eine mit AES-256 verschlüsselte ZIP-Datei gepackt und an eine neue Nachricht in deinem Mailprogramm angehängt. Teile dem Empfänger das Passwort auf anderem Weg mit (Telefon, Messenger) – die Datei lässt sich mit 7-Zip, WinRAR oder Keka öffnen."
+
+msgid "The email was cancelled"
+msgstr "Die E-Mail wurde abgebrochen"
+
+msgid "The full report is attached as a PDF."
+msgstr "Der vollständige Bericht ist als PDF angehängt."
+
+msgid "The glucose log is locked or not loaded. Unlock it to see reports."
+msgstr "Das Glukose-Protokoll ist gesperrt oder nicht geladen. Entsperre es, um Berichte zu sehen."
+
+msgid "The log is encrypted. Enter the passphrase to load your history."
+msgstr "Das Protokoll ist verschlüsselt. Gib die Passphrase ein, um deinen Verlauf zu laden."
+
+msgid "The log is locked."
+msgstr "Das Protokoll ist gesperrt."
+
+msgid "The log is not loaded in this session."
+msgstr "Das Protokoll ist in dieser Sitzung nicht geladen."
+
+msgid "The pairing keys are missing from the system keychain – pair again."
+msgstr "Die Kopplungsschlüssel fehlen im Schlüsselbund des Systems – koppel erneut."
+
+msgid "The report is attached as a ZIP file encrypted with AES-256. Open it with 7-Zip, WinRAR or Keka and the password you agreed on."
+msgstr "Der Bericht ist als mit AES-256 verschlüsselte ZIP-Datei angehängt. Öffne sie mit 7-Zip, WinRAR oder Keka und dem vereinbarten Passwort."
+
+msgid "The server revoked this computer – pair it again."
+msgstr "Der Server hat diesen Computer entfernt – koppel ihn erneut."
+
+msgid "Theme"
+msgstr "Design"
+
+msgid "This computer then stops polling LibreLinkUp itself – fewer logins on your account."
+msgstr "Dieser Computer fragt LibreLinkUp dann nicht mehr selbst ab – weniger Anmeldungen bei deinem Konto."
+
+msgid "This permanently removes from this computer:\n•  settings, app and API logs\n•  the saved LibreLinkUp sign-in, the log passphrase and the caching-server pairing (system keychain)\n•  the autostart entry"
+msgstr "Das entfernt dauerhaft von diesem Computer:\n•  Einstellungen, App- und API-Protokolle\n•  die gespeicherte LibreLinkUp-Anmeldung, die Protokoll-Passphrase und die Kopplung mit dem Caching-Server (Schlüsselbund)\n•  den Autostart-Eintrag"
+
+msgid "This release has no package for this kind of installation"
+msgstr "Diese Version hat kein Paket für diese Art der Installation"
+
+msgid "Thu"
+msgstr "Do"
+
+msgid "Time (YYYY-MM-DD HH:MM, or just HH:MM for today)"
+msgstr "Zeit (JJJJ-MM-TT HH:MM, oder nur HH:MM für heute)"
+
+msgid "Time in range ({})"
+msgstr "Zeit im Zielbereich ({})"
+
+msgid "Time in ranges"
+msgstr "Zeit in Bereichen"
+
+msgid "Time span"
+msgstr "Zeitraum"
+
+msgid "Tip: import a LibreView \"Download glucose data\" CSV to backfill history older than 12 hours. Readings and notes are exported on the Reports page (Export…)."
+msgstr "Tipp: Importiere eine LibreView-CSV („Glukosedaten herunterladen“), um Verlauf älter als 12 Stunden nachzutragen. Messwerte und Notizen exportierst du auf der Seite Berichte (Exportieren…)."
+
+msgid "To"
+msgstr "Bis"
+
+msgid "To (optional)"
+msgstr "An (optional)"
+
+msgid "Total insulin"
+msgstr "Insulin gesamt"
+
+msgid "Traffic lights are a simplified, informational approximation of LibreView's pattern insights – not medical advice."
+msgstr "Die Ampeln sind eine vereinfachte, informative Annäherung an die Glukosemuster von LibreView – keine medizinische Beratung."
+
+msgid "Tray icon"
+msgstr "Tray-Symbol"
+
+msgid "Treatment"
+msgstr "Behandlung"
+
+msgid "Trend arrow straight down, or faster than the rate on the right"
+msgstr "Trendpfeil senkrecht nach unten oder schneller als die Rate rechts"
+
+msgid "Trend arrow straight up, or faster than the rate on the right"
+msgstr "Trendpfeil senkrecht nach oben oder schneller als die Rate rechts"
+
+msgid "Tue"
+msgstr "Di"
+
+msgid "Turn on the glucose log in Settings to build reports – LibreLinkUp itself only keeps the last 12 hours."
+msgstr "Schalte in den Einstellungen das Glukose-Protokoll ein, um Berichte zu erstellen – LibreLinkUp selbst speichert nur die letzten 12 Stunden."
+
+msgid "Units"
+msgstr "Einheiten"
+
+msgid "Unlock"
+msgstr "Entsperren"
+
+msgid "Unlock your glucose log"
+msgstr "Glukose-Protokoll entsperren"
+
+msgid "Unpair"
+msgstr "Entkoppeln"
+
+msgid "Unpaired from the caching server"
+msgstr "Vom Caching-Server entkoppelt"
+
+msgid "Update available"
+msgstr "Update verfügbar"
+
+msgid "Update check failed: {}"
+msgstr "Update-Prüfung fehlgeschlagen: {}"
+
+msgid "Update now"
+msgstr "Jetzt aktualisieren"
+
+msgid "Updated {}"
+msgstr "Aktualisiert {}"
+
+msgid "Updated {} via server"
+msgstr "Aktualisiert {} über den Server"
+
+msgid "Updates"
+msgstr "Updates"
+
+msgid "Urgent low: {} {}"
+msgstr "Dringend niedrig: {} {}"
+
+msgid "Use a caching server instead"
+msgstr "Stattdessen einen Caching-Server verwenden"
+
+msgid "Use the server for live values"
+msgstr "Server für Live-Werte verwenden"
+
+msgid "VERY HIGH"
+msgstr "SEHR HOCH"
+
+msgid "VERY LOW"
+msgstr "SEHR NIEDRIG"
+
+msgid "Values are entered in the unit currently shown (mmol/L or mg/dL)."
+msgstr "Werte werden in der gerade angezeigten Einheit eingegeben (mmol/L oder mg/dL)."
+
+msgid "Variability"
+msgstr "Variabilität"
+
+msgid "Variability (CV)"
+msgstr "Variabilität (VK)"
+
+msgid "Variability below median"
+msgstr "Schwankung unter dem Median"
+
+msgid "Version {} is available"
+msgstr "Version {} ist verfügbar"
+
+msgid "Version {} will not be offered again"
+msgstr "Version {} wird nicht mehr angeboten"
+
+msgid "Version {} · free software under the GNU GPL v3"
+msgstr "Version {} · freie Software unter der GNU GPL v3"
+
+msgid "Version {} · {}"
+msgstr "Version {} · {}"
+
+msgid "Very high"
+msgstr "Sehr hoch"
+
+msgid "Very low"
+msgstr "Sehr niedrig"
+
+msgid "Wed"
+msgstr "Mi"
+
+msgid "What's new in {}"
+msgstr "Neu in {}"
+
+msgid "White"
+msgstr "Weiß"
+
+msgid "You have the latest version ({})"
+msgstr "Du hast die neueste Version ({})"
+
+msgid "an updated legal document"
+msgstr "ein aktualisiertes rechtliches Dokument"
+
+msgid "approximate HbA1c from average CGM glucose"
+msgstr "ungefährer HbA1c aus der durchschnittlichen CGM-Glukose"
+
+msgid "avg {}"
+msgstr "Ø {}"
+
+msgid "carbs must be between 0 and 1000 g"
+msgstr "Kohlenhydrate müssen zwischen 0 und 1000 g liegen"
+
+msgid "certificate {}"
+msgstr "Zertifikat {}"
+
+msgid "checked {}"
+msgstr "geprüft {}"
+
+msgid "choose a treatment for the units"
+msgstr "wähle eine Behandlung für die Einheiten"
+
+msgid "could not store the pairing keys in the system keychain"
+msgstr "die Kopplungsschlüssel konnten nicht im Schlüsselbund des Systems gespeichert werden"
+
+msgid "could not store the rotated token in the system keychain"
+msgstr "das erneuerte Token konnte nicht im Schlüsselbund des Systems gespeichert werden"
+
+msgid "e.g. inhaled insulin, glucagon"
+msgstr "z. B. inhalatives Insulin, Glukagon"
+
+msgid "e.g. pizza, 30 min walk"
+msgstr "z. B. Pizza, 30 min Spaziergang"
+
+msgid "enable and unlock the log first"
+msgstr "aktiviere und entsperre zuerst das Protokoll"
+
+msgid "encrypted (XChaCha20-Poly1305, Argon2id)"
+msgstr "verschlüsselt (XChaCha20-Poly1305, Argon2id)"
+
+msgid "enter a name for the custom treatment"
+msgstr "gib einen Namen für die eigene Behandlung ein"
+
+msgid "enter the carbs in grams, e.g. 45"
+msgstr "gib die Kohlenhydrate in Gramm ein, z. B. 45"
+
+msgid "enter the time as YYYY-MM-DD HH:MM, or HH:MM for today"
+msgstr "gib die Zeit als JJJJ-MM-TT HH:MM ein, oder HH:MM für heute"
+
+msgid "enter the units as a number, e.g. 4.5"
+msgstr "gib die Einheiten als Zahl ein, z. B. 4,5"
+
+msgid "g"
+msgstr "g"
+
+msgid "github.com/NUCL3ARN30N/genius-librelinkup"
+msgstr "github.com/NUCL3ARN30N/genius-librelinkup"
+
+msgid "glucose management indicator, approximate HbA1c"
+msgstr "Glukose-Management-Indikator, ungefährer HbA1c"
+
+msgid "goal ≤ 36 %"
+msgstr "Ziel ≤ 36 %"
+
+msgid "goal: 36 % or lower"
+msgstr "Ziel: 36 % oder weniger"
+
+msgid "just now"
+msgstr "gerade eben"
+
+msgid "less than 70 % – interpret with care"
+msgstr "weniger als 70 % – mit Vorsicht interpretieren"
+
+msgid "log not loaded"
+msgstr "Protokoll nicht geladen"
+
+msgid "min"
+msgstr "min"
+
+msgid "no entries"
+msgstr "keine Einträge"
+
+msgid "no readings"
+msgstr "keine Messwerte"
+
+msgid "not encrypted"
+msgstr "nicht verschlüsselt"
+
+msgid "passphrase required"
+msgstr "Passphrase erforderlich"
+
+msgid "public certificate"
+msgstr "öffentliches Zertifikat"
+
+msgid "s"
+msgstr "s"
+
+msgid "started {} (day {})"
+msgstr "gestartet {} (Tag {})"
+
+msgid "the current passphrase is wrong"
+msgstr "die aktuelle Passphrase ist falsch"
+
+msgid "the glucose log is not loaded"
+msgstr "das Glukose-Protokoll ist nicht geladen"
+
+msgid "the log is not loaded"
+msgstr "das Protokoll ist nicht geladen"
+
+msgid "the note is empty"
+msgstr "die Notiz ist leer"
+
+msgid "the notes file could not be read ({})"
+msgstr "die Notizdatei konnte nicht gelesen werden ({})"
+
+msgid "the password needs at least {} characters"
+msgstr "das Passwort braucht mindestens {} Zeichen"
+
+msgid "the passwords do not match"
+msgstr "die Passwörter stimmen nicht überein"
+
+msgid "the server has no data yet – check LLU_EMAIL / LLU_PASSWORD on the server"
+msgstr "der Server hat noch keine Daten – prüfe LLU_EMAIL / LLU_PASSWORD auf dem Server"
+
+msgid "the time is more than a day in the future"
+msgstr "die Zeit liegt mehr als einen Tag in der Zukunft"
+
+msgid "the treatment name is longer than {} characters"
+msgstr "der Name der Behandlung ist länger als {} Zeichen"
+
+msgid "the updated Privacy Policy"
+msgstr "die aktualisierte Datenschutzerklärung"
+
+msgid "the updated Terms of Use"
+msgstr "die aktualisierten Nutzungsbedingungen"
+
+msgid "there are no readings in this period"
+msgstr "in diesem Zeitraum gibt es keine Messwerte"
+
+msgid "there is no data in this period"
+msgstr "in diesem Zeitraum gibt es keine Daten"
+
+msgid "u"
+msgstr "IE"
+
+msgid "units must be between 0 and 1000"
+msgstr "die Einheiten müssen zwischen 0 und 1000 liegen"
+
+msgid "unlock or enable the log first"
+msgstr "entsperre oder aktiviere zuerst das Protokoll"
+
+msgid "writing the log: {}"
+msgstr "Schreiben des Protokolls: {}"
+
+msgid "wrong passphrase"
+msgstr "falsche Passphrase"
+
+msgid "wrong passphrase or corrupted file"
+msgstr "falsche Passphrase oder beschädigte Datei"
+
+msgid "{} % in range"
+msgstr "{} % im Bereich"
+
+msgid "{} % long-acting"
+msgstr "{} % langwirksam"
+
+msgid "{} added to the log"
+msgstr "{} ins Protokoll übernommen"
+
+msgid "{} and {} since {} in {} · {}"
+msgstr "{} und {} seit {} in {} · {}"
+
+msgid "{} g carbs"
+msgstr "{} g KH"
+
+msgid "{} g/day"
+msgstr "{} g/Tag"
+
+msgid "{} h ago"
+msgstr "vor {} h"
+
+msgid "{} min ago"
+msgstr "vor {} min"
+
+msgid "{} of {}"
+msgstr "{} von {}"
+
+msgid "{} u/day"
+msgstr "{} IE/Tag"
+
+msgid "{} {} u"
+msgstr "{} {} IE"
+
+msgid "{} – computers that sync this folder lose it too"
+msgstr "{} – Computer, die diesen Ordner synchronisieren, verlieren es auch"
+
+msgid "{}: {} u"
+msgstr "{}: {} IE"
+
+msgid "{n} reading"
+msgid_plural "{n} readings"
+msgstr[0] "{n} Messwert"
+msgstr[1] "{n} Messwerte"
+
+msgid "{n} note"
+msgid_plural "{n} notes"
+msgstr[0] "{n} Notiz"
+msgstr[1] "{n} Notizen"
+
+msgid "{n} new reading"
+msgid_plural "{n} new readings"
+msgstr[0] "{n} neuer Messwert"
+msgstr[1] "{n} neue Messwerte"
+
+msgid "{n} day"
+msgid_plural "{n} days"
+msgstr[0] "{n} Tag"
+msgstr[1] "{n} Tage"
+
+msgid "{n} recipient"
+msgid_plural "{n} recipients"
+msgstr[0] "{n} Empfänger"
+msgstr[1] "{n} Empfänger"

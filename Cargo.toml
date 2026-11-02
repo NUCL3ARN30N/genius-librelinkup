@@ -37,6 +37,7 @@ tracing-appender = "0.2.5"
 tracing-subscriber = { version = "0.3.23", features = ["env-filter"] }
 # On Linux use the pure-Rust StatusNotifierItem (ksni) backend instead of GTK/libappindicator.
 tray-icon = { version = "0.26.1", default-features = false, features = ["ksni"] }
+sys-locale = "0.3.2"
 
 [target.'cfg(windows)'.dependencies]
 winreg = "0.55"

@@ -13,7 +13,9 @@ use std::time::Duration as StdDuration;
 
 use anyhow::{Context, Result, anyhow, bail};
 use chrono::{DateTime, Datelike, Duration, Local, NaiveDate, NaiveTime, TimeZone, Utc};
+use gllu_core::i18n::{self, Lang};
 use gllu_core::report_pdf::{self, PdfOptions};
+use gllu_core::tr;
 use gllu_core::stats;
 use gllu_core::sync::{self, PatientInfo};
 use lettre::message::header::ContentType;
@@ -89,9 +91,9 @@ impl Period {
     pub fn title(&self) -> String {
         let last = self.to - Duration::days(1);
         match self.schedule {
-            Schedule::Daily => self.from.format("%a %d %b %Y").to_string(),
-            Schedule::Weekly => format!("{} – {}", self.from.format("%d %b"), last.format("%d %b %Y")),
-            Schedule::Monthly => self.from.format("%B %Y").to_string(),
+            Schedule::Daily => i18n::date(self.from.format("%a %d %b %Y")),
+            Schedule::Weekly => i18n::date(format!("{} – {}", self.from.format("%d %b"), last.format("%d %b %Y"))),
+            Schedule::Monthly => i18n::date(self.from.format("%B %Y")),
         }
     }
 
@@ -285,49 +287,40 @@ fn html_escape(s: &str) -> String {
     s.replace('&', "&amp;").replace('<', "&lt;").replace('>', "&gt;").replace('"', "&quot;")
 }
 
-const FOOTER: &str = "Sent by gllu-server (Genius LibreLinkUp) – not a medical device. Do not make treatment decisions based on this report.";
-
 /// Plain-text and HTML body. With `values` false (encrypted ZIP) neither contains a glucose value.
 pub fn bodies(s: &Summary, values: bool) -> (String, String) {
-    let who = if s.patient.is_empty() { String::new() } else { format!(" for {}", s.patient) };
+    let footer = tr!("Sent by gllu-server (Genius LibreLinkUp) – not a medical device. Do not make treatment decisions based on this report.");
+    let heading = if s.patient.is_empty() { tr!("Glucose report").to_string() } else { tr!("Glucose report for {}", s.patient) };
+    let open = "<html><body style=\"font-family:Arial,sans-serif;color:#191c20\">";
+    let title = format!(
+        "<h2 style=\"margin:0 0 4px\">{}</h2><p style=\"color:#5b5f67;margin:0 0 16px\">{}</p>",
+        html_escape(&heading),
+        html_escape(&s.period)
+    );
+    let small = |t: &str| format!("<p style=\"color:#5b5f67;font-size:12px\">{}</p></body></html>", html_escape(t));
     if !values {
-        let text = format!(
-            "Glucose report{who} – {}\n\nThe report is attached as a ZIP file encrypted with AES-256. Open it with 7-Zip, \
-             WinRAR or Keka and the password you agreed on.\n\n{FOOTER}\n",
-            s.period
-        );
-        let html = format!(
-            "<html><body style=\"font-family:Arial,sans-serif;color:#191c20\"><h2 style=\"margin:0 0 4px\">Glucose report{}</h2>\
-             <p style=\"color:#5b5f67;margin:0 0 16px\">{}</p><p>The report is attached as a ZIP file encrypted with AES-256. \
-             Open it with 7-Zip, WinRAR or Keka and the password you agreed on.</p>\
-             <p style=\"color:#5b5f67;font-size:12px\">{}</p></body></html>",
-            html_escape(&who),
-            html_escape(&s.period),
-            html_escape(FOOTER)
-        );
+        let zip = tr!("The report is attached as a ZIP file encrypted with AES-256. Open it with 7-Zip, WinRAR or Keka and the password you agreed on.");
+        let text = format!("{heading} – {}\n\n{zip}\n\n{footer}\n", s.period);
+        let html = format!("{open}{title}<p>{}</p>{}", html_escape(zip), small(footer));
         return (text, html);
     }
     let rows = [
-        (format!("Time in range ({})", s.target), format!("{:.0} %", s.in_range_pct)),
-        ("Below range".to_string(), format!("{:.0} %", s.below_pct)),
-        ("Above range".to_string(), format!("{:.0} %", s.above_pct)),
-        ("Average glucose".to_string(), s.mean.clone()),
-        ("GMI (approximate HbA1c)".to_string(), format!("{:.1} %", s.gmi_pct)),
-        ("Low episodes (15 min or longer)".to_string(), s.lows.to_string()),
-        ("High episodes (15 min or longer)".to_string(), s.highs.to_string()),
-        ("Sensor active".to_string(), format!("{:.0} % · {}", s.coverage_pct, gllu_core::count(s.readings, "reading"))),
+        (tr!("Time in range ({})", s.target), format!("{:.0} %", s.in_range_pct)),
+        (tr!("Below range").to_string(), format!("{:.0} %", s.below_pct)),
+        (tr!("Above range").to_string(), format!("{:.0} %", s.above_pct)),
+        (tr!("Average glucose").to_string(), s.mean.clone()),
+        (tr!("GMI (approximate HbA1c)").to_string(), i18n::numbers(&format!("{:.1} %", s.gmi_pct))),
+        (tr!("Low episodes (15 min or longer)").to_string(), s.lows.to_string()),
+        (tr!("High episodes (15 min or longer)").to_string(), s.highs.to_string()),
+        (tr!("Sensor active").to_string(), format!("{:.0} % · {}", s.coverage_pct, gllu_core::count(s.readings, "reading"))),
     ];
-    let mut text = format!("Glucose report{who} – {}\n\n", s.period);
+    let attached = tr!("The full report is attached as a PDF.");
+    let mut text = format!("{heading} – {}\n\n", s.period);
     for (k, v) in &rows {
         text.push_str(&format!("{k}: {v}\n"));
     }
-    text.push_str(&format!("\nThe full report is attached as a PDF.\n\n{FOOTER}\n"));
-    let mut html = format!(
-        "<html><body style=\"font-family:Arial,sans-serif;color:#191c20\"><h2 style=\"margin:0 0 4px\">Glucose report{}</h2>\
-         <p style=\"color:#5b5f67;margin:0 0 16px\">{}</p><table style=\"border-collapse:collapse\">",
-        html_escape(&who),
-        html_escape(&s.period)
-    );
+    text.push_str(&format!("\n{attached}\n\n{footer}\n"));
+    let mut html = format!("{open}{title}<table style=\"border-collapse:collapse\">");
     for (k, v) in &rows {
         html.push_str(&format!(
             "<tr><td style=\"padding:4px 24px 4px 0\">{}</td><td style=\"padding:4px 0;font-weight:bold;text-align:right\">{}</td></tr>",
@@ -335,10 +328,7 @@ pub fn bodies(s: &Summary, values: bool) -> (String, String) {
             html_escape(v)
         ));
     }
-    html.push_str(&format!(
-        "</table><p>The full report is attached as a PDF.</p><p style=\"color:#5b5f67;font-size:12px\">{}</p></body></html>",
-        html_escape(FOOTER)
-    ));
+    html.push_str(&format!("</table><p>{}</p>{}", html_escape(attached), small(footer)));
     (text, html)
 }
 
@@ -352,9 +342,9 @@ pub fn build_message(
     zip_password: Option<&str>,
 ) -> Result<Message> {
     let mut b = Message::builder().from(from.clone()).subject(if summary.patient.is_empty() {
-        format!("Glucose report {}", summary.period)
+        tr!("Glucose report {}", summary.period)
     } else {
-        format!("Glucose report {} – {}", summary.period, summary.patient)
+        tr!("Glucose report {} – {}", summary.period, summary.patient)
     });
     for t in to {
         b = b.to(t.clone());
@@ -392,7 +382,7 @@ fn make_report(
     let totals = stats::daily_totals(&notes, from, end);
     let name = format!("{} {}", patient.first_name, patient.last_name).trim().to_string();
     let opts = PdfOptions {
-        title: "Glucose report".into(),
+        title: tr!("Glucose report").into(),
         patient: name.clone(),
         period: title.to_string(),
         generated: Local::now().format("%Y-%m-%d %H:%M").to_string(),
@@ -412,11 +402,11 @@ fn make_report(
         in_range_pct: report.tir.target,
         below_pct: report.tir.low + report.tir.very_low,
         above_pct: report.tir.high + report.tir.very_high,
-        mean: format!("{} {unit}", fmt(report.mean)),
+        mean: i18n::numbers(&format!("{} {unit}", fmt(report.mean))),
         gmi_pct: report.gmi_pct,
         lows: stats::episodes(&readings, |v| v < lo, 15),
         highs: stats::episodes(&readings, |v| v > hi, 15),
-        target: format!("{}–{} {unit}", fmt(lo), fmt(hi)),
+        target: i18n::numbers(&format!("{}–{} {unit}", fmt(lo), fmt(hi))),
     };
     Ok(Some((pdf, summary)))
 }
@@ -454,6 +444,7 @@ fn recipients(rc: &ReportConfig) -> String {
 
 /// The scheduler task of `serve`: checks once a minute which reports are due.
 pub async fn scheduler(state: Arc<AppState>, rc: ReportConfig) {
+    i18n::set_language(Lang::from_code(&rc.lang));
     let dir = state.cfg.data_dir.clone();
     tracing::info!(
         "email reports: {} at {} ({}, now UTC{}) to {} via {}:{}",
@@ -540,6 +531,7 @@ pub async fn command(state: Arc<AppState>, args: &[String]) -> Result<()> {
     };
     if let Some(name) = value("--send-now") {
         let rc = ReportConfig::from_env()?.ok_or_else(|| anyhow!("GLLU_SMTP_URL is not set"))?;
+        i18n::set_language(Lang::from_code(&rc.lang));
         let schedule = schedule_arg(Some(name))?.unwrap();
         let period = latest_due(schedule, Utc::now(), rc.time, &Local);
         for p in &patients {
@@ -571,11 +563,12 @@ pub async fn command(state: Arc<AppState>, args: &[String]) -> Result<()> {
                 let from = to - Duration::days(14);
                 (
                     (from, to + Duration::seconds(1)),
-                    format!("{} – {}", from.with_timezone(&Local).format("%d %b %Y"), to.with_timezone(&Local).format("%d %b %Y")),
+                    i18n::date(format!("{} – {}", from.with_timezone(&Local).format("%d %b %Y"), to.with_timezone(&Local).format("%d %b %Y"))),
                 )
             }
         };
         let (target, mmol, lang) = rc.as_ref().map(|r| (r.target, r.mmol, r.lang.clone())).unwrap_or((None, None, "en".into()));
+        i18n::set_language(Lang::from_code(&lang));
         for (i, p) in patients.iter().enumerate() {
             let path = if i == 0 { std::path::PathBuf::from(&file) } else { Path::new(&file).with_extension(format!("{}.pdf", i + 1)) };
             match make_report(&state, target, mmol, &lang, p, range, &title)? {

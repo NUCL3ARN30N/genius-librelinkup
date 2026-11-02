@@ -73,8 +73,8 @@ pub struct PendingStep {
 impl PendingStep {
     pub fn describe(&self) -> &'static str {
         match self.kind.as_str() {
-            "tou" => "updated Terms of Use",
-            "pp" => "updated Privacy Policy",
+            "tou" => "the updated Terms of Use",
+            "pp" => "the updated Privacy Policy",
             _ => "an updated legal document",
         }
     }

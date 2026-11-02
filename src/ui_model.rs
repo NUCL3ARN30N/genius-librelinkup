@@ -8,6 +8,8 @@ use crate::api::Reading;
 use crate::stats::{self, Light, Report};
 use crate::store::{Note, Treatment, TreatmentKind, check_carbs, fmt_units};
 use crate::units::{Units, level};
+use gllu_core::i18n;
+use gllu_core::tr;
 use crate::{AxisLabel, DayBar, DayCard, Dot, GraphPoint, Insight, NoteMark, StatItem, TirRow};
 
 const VW: f32 = 1000.0;
@@ -17,8 +19,9 @@ fn s(v: impl Into<SharedString>) -> SharedString {
     v.into()
 }
 
+/// A label/value row; decimals in the value follow the language (decimal comma in German).
 pub fn stat(label: &str, value: impl Into<SharedString>, hint: &str) -> StatItem {
-    StatItem { label: s(label), value: value.into(), hint: s(hint) }
+    StatItem { label: s(label), value: s(i18n::numbers(&value.into())), hint: s(hint) }
 }
 
 /// Upper bound of the y axis in mg/dL, on "nice" steps of the shown unit.
@@ -120,7 +123,7 @@ pub fn note_mark(n: &Note, x: f32, time_format: &str) -> NoteMark {
     NoteMark {
         x,
         id: s(n.id.clone()),
-        time: s(t.format(time_format).to_string()),
+        time: s(i18n::date(t.format(time_format))),
         when: s(t.format(NOTE_TIME_FORMAT).to_string()),
         text: s(n.summary()),
         note: s(n.text.clone()),
@@ -143,7 +146,7 @@ pub fn carbs_from_ui(text: &str) -> anyhow::Result<Option<f32>> {
     if text.is_empty() {
         return Ok(None);
     }
-    let g = text.replace(',', ".").parse::<f32>().map_err(|_| anyhow::anyhow!("enter the carbs in grams, e.g. 45"))?;
+    let g = text.replace(',', ".").parse::<f32>().map_err(|_| anyhow::anyhow!(tr!("enter the carbs in grams, e.g. 45")))?;
     check_carbs(Some(g))
 }
 
@@ -151,16 +154,16 @@ pub fn carbs_from_ui(text: &str) -> anyhow::Result<Option<f32>> {
 pub fn totals_text(d: &stats::DayTotals) -> String {
     let mut parts = Vec::new();
     if d.rapid_u > 0.0 {
-        parts.push(format!("Rapid {} u", fmt_units(d.rapid_u)));
+        parts.push(tr!("Rapid {} u", fmt_units(d.rapid_u)));
     }
     if d.long_u > 0.0 {
-        parts.push(format!("Long {} u", fmt_units(d.long_u)));
+        parts.push(tr!("Long {} u", fmt_units(d.long_u)));
     }
-    parts.extend(d.custom.iter().map(|(name, u)| format!("{name} {} u", fmt_units(*u))));
+    parts.extend(d.custom.iter().map(|(name, u)| tr!("{} {} u", name, fmt_units(*u))));
     if d.carbs_g > 0.0 {
-        parts.push(format!("Carbs {} g", fmt_units(d.carbs_g.round())));
+        parts.push(tr!("Carbs {} g", fmt_units(d.carbs_g.round())));
     }
-    parts.join(" · ")
+    i18n::numbers(&parts.join(" · "))
 }
 
 /// Rounds an average for display: one decimal below 10, whole numbers above.
@@ -177,22 +180,22 @@ pub fn insulin_carbs(days: &[stats::DayTotals]) -> (Vec<StatItem>, Vec<DayBar>) 
     }
     let mut items = Vec::new();
     if sum.avg_rapid_u > 0.0 {
-        items.push(stat("Rapid-acting insulin", format!("{} u/day", fmt_avg(sum.avg_rapid_u)), ""));
+        items.push(stat(tr!("Rapid-acting insulin"), tr!("{} u/day", fmt_avg(sum.avg_rapid_u)), ""));
     }
     if sum.avg_long_u > 0.0 {
-        items.push(stat("Long-acting insulin", format!("{} u/day", fmt_avg(sum.avg_long_u)), ""));
+        items.push(stat(tr!("Long-acting insulin"), tr!("{} u/day", fmt_avg(sum.avg_long_u)), ""));
     }
     if sum.avg_rapid_u > 0.0 && sum.avg_long_u > 0.0 {
         let basal = sum.avg_long_u / sum.avg_insulin_u() * 100.0;
-        items.push(stat("Total insulin", format!("{} u/day", fmt_avg(sum.avg_insulin_u())), &format!("{basal:.0} % long-acting")));
+        items.push(stat(tr!("Total insulin"), tr!("{} u/day", fmt_avg(sum.avg_insulin_u())), &tr!("{} % long-acting", format!("{basal:.0}"))));
     }
     for (name, u) in &sum.avg_custom {
-        items.push(stat(name, format!("{} u/day", fmt_avg(*u)), ""));
+        items.push(stat(name, tr!("{} u/day", fmt_avg(*u)), ""));
     }
     if sum.avg_carbs_g > 0.0 {
-        items.push(stat("Carbohydrates", format!("{} g/day", fmt_units(sum.avg_carbs_g.round())), ""));
+        items.push(stat(tr!("Carbohydrates"), tr!("{} g/day", fmt_units(sum.avg_carbs_g.round())), ""));
     }
-    items.push(stat("Days with entries", format!("{} of {}", sum.days_with_entries, sum.days), ""));
+    items.push(stat(tr!("Days with entries"), tr!("{} of {}", sum.days_with_entries, sum.days), ""));
 
     let max_u = days.iter().map(stats::DayTotals::insulin_u).fold(0.0, f32::max).max(1.0);
     let max_g = days.iter().map(|d| d.carbs_g).fold(0.0, f32::max).max(1.0);
@@ -201,13 +204,13 @@ pub fn insulin_carbs(days: &[stats::DayTotals]) -> (Vec<StatItem>, Vec<DayBar>) 
         .map(|d| {
             let totals = totals_text(d);
             DayBar {
-                label: s(d.date.format("%d %b").to_string()),
+                label: s(i18n::date(d.date.format("%d %b"))),
                 insulin: d.insulin_u() / max_u,
                 carbs: d.carbs_g / max_g,
                 text: s(format!(
                     "{} · {}",
-                    d.date.format("%a %d %b"),
-                    if totals.is_empty() { "no entries".to_string() } else { totals }
+                    i18n::date(d.date.format("%a %d %b")),
+                    if totals.is_empty() { tr!("no entries").to_string() } else { totals }
                 )),
             }
         })
@@ -222,13 +225,13 @@ pub fn treatment_from_ui(index: i32, name: &str, units: &str) -> anyhow::Result<
     let units = if units.is_empty() {
         None
     } else {
-        Some(units.replace(',', ".").parse::<f32>().map_err(|_| anyhow::anyhow!("enter the units as a number, e.g. 4.5"))?)
+        Some(units.replace(',', ".").parse::<f32>().map_err(|_| anyhow::anyhow!(tr!("enter the units as a number, e.g. 4.5")))?)
     };
     let kind = match index {
         1 => TreatmentKind::RapidActing,
         2 => TreatmentKind::LongActing,
         3 => TreatmentKind::Custom,
-        _ if units.is_some() => anyhow::bail!("choose a treatment for the units"),
+        _ if units.is_some() => anyhow::bail!(tr!("choose a treatment for the units")),
         _ => return Ok(None),
     };
     Treatment::new(kind, name, units).map(Some)
@@ -317,7 +320,7 @@ fn graph_between(
         .map(|r| GraphPoint {
             x: fx(r.time),
             y: fy(r.mg_dl),
-            time: s(r.time.with_timezone(&Local).format(time_format(r.time)).to_string()),
+            time: s(i18n::date(r.time.with_timezone(&Local).format(time_format(r.time)))),
             value: s(units.fmt_unit(r.mg_dl)),
             level: level(r.mg_dl, target_low, target_high),
             when: s(note_time_text(r.time)),
@@ -396,16 +399,16 @@ fn tir_rows(r: &Report, u: Units, target_low: f32, target_high: f32) -> Vec<TirR
         level: lvl,
     };
     vec![
-        tir_row("Very high", format!("> {}", u.fmt_unit(stats::VERY_HIGH)), r.tir.very_high, 5),
+        tir_row(tr!("Very high"), format!("> {}", u.fmt_unit(stats::VERY_HIGH)), r.tir.very_high, 5),
         tir_row(
-            "High",
+            tr!("High"),
             format!("{} – {}", u.fmt(target_high + 1.0), u.fmt_unit(stats::VERY_HIGH)),
             r.tir.high,
             4,
         ),
-        tir_row("Target range", format!("{} – {}", u.fmt(target_low), u.fmt_unit(target_high)), r.tir.target, 3),
-        tir_row("Low", format!("{} – {}", u.fmt(stats::VERY_LOW), u.fmt_unit(below(target_low))), r.tir.low, 2),
-        tir_row("Very low", format!("< {}", u.fmt_unit(stats::VERY_LOW)), r.tir.very_low, 1),
+        tir_row(tr!("Target range"), format!("{} – {}", u.fmt(target_low), u.fmt_unit(target_high)), r.tir.target, 3),
+        tir_row(tr!("Low"), format!("{} – {}", u.fmt(stats::VERY_LOW), u.fmt_unit(below(target_low))), r.tir.low, 2),
+        tir_row(tr!("Very low"), format!("< {}", u.fmt_unit(stats::VERY_LOW)), r.tir.very_low, 1),
     ]
 }
 
@@ -513,7 +516,7 @@ fn calendar(
             key: day_key(d.date),
             day: s(d.date.day().to_string()),
             // month name on the first shown day and on every 1st
-            month: s(if i == 0 || d.date.day() == 1 { d.date.format("%b").to_string() } else { String::new() }),
+            month: s(if i == 0 || d.date.day() == 1 { i18n::date(d.date.format("%b")) } else { String::new() }),
             path: s(path),
             has_data,
             in_range: s(if has_data { format!("{in_range:.0} %") } else { String::new() }),
@@ -553,20 +556,20 @@ pub fn day_detail(
     let min = readings.iter().map(|r| r.mg_dl).fold(f32::MAX, f32::min);
     let max = readings.iter().map(|r| r.mg_dl).fold(0.0, f32::max);
     let stats = if readings.is_empty() {
-        vec![stat("Readings", "0", "")]
+        vec![stat(tr!("Readings"), "0", "")]
     } else {
         vec![
-            stat("Average", u.fmt_unit(r.mean), ""),
-            stat("Lowest", u.fmt_unit(min), ""),
-            stat("Highest", u.fmt_unit(max), ""),
-            stat("Standard deviation", u.fmt_unit(r.sd), ""),
-            stat("Variability (CV)", format!("{:.1} %", r.cv_pct), ""),
-            stat("% time CGM is active", format!("{:.0} %", r.sensor_active_pct), ""),
-            stat("Readings", readings.len().to_string(), ""),
+            stat(tr!("Average"), u.fmt_unit(r.mean), ""),
+            stat(tr!("Lowest"), u.fmt_unit(min), ""),
+            stat(tr!("Highest"), u.fmt_unit(max), ""),
+            stat(tr!("Standard deviation"), u.fmt_unit(r.sd), ""),
+            stat(tr!("Variability (CV)"), format!("{:.1} %", r.cv_pct), ""),
+            stat(tr!("% time CGM is active"), format!("{:.0} %", r.sensor_active_pct), ""),
+            stat(tr!("Readings"), readings.len().to_string(), ""),
         ]
     };
     DayDetailModel {
-        title: date.format("%A, %d %B %Y").to_string(),
+        title: i18n::date(date.format("%A, %d %B %Y")),
         graph: graph_between(readings, notes, u, (target_low, target_high), start, end, style, 3, false),
         stats,
         tir: tir_rows(&r, u, target_low, target_high),
@@ -576,26 +579,32 @@ pub fn day_detail(
 
 pub fn report_model(r: &Report, notes: &[Note], units: Units, target_low: f32, target_high: f32) -> ReportModel {
     let fmt_date = |t: Option<DateTime<Utc>>| {
-        t.map(|t| t.with_timezone(&Local).format("%d %b %Y").to_string()).unwrap_or_default()
+        t.map(|t| i18n::date(t.with_timezone(&Local).format("%d %b %Y"))).unwrap_or_default()
     };
-    let subtitle = format!("{} – {} ({} days, {} readings)", fmt_date(r.from), fmt_date(r.to), r.days, r.readings);
+    let subtitle = format!(
+        "{} – {} ({}, {})",
+        fmt_date(r.from),
+        fmt_date(r.to),
+        gllu_core::count(r.days as usize, "day"),
+        gllu_core::count(r.readings, "reading")
+    );
     let u = units;
-    let coverage_hint = if r.sensor_active_pct < 70.0 { "less than 70 % – interpret with care" } else { "" };
+    let coverage_hint = if r.sensor_active_pct < 70.0 { tr!("less than 70 % – interpret with care") } else { "" };
     let stats = vec![
-        stat("% time CGM is active", format!("{:.1} %", r.sensor_active_pct), coverage_hint),
-        stat("Average glucose", u.fmt_unit(r.mean), ""),
+        stat(tr!("% time CGM is active"), format!("{:.1} %", r.sensor_active_pct), coverage_hint),
+        stat(tr!("Average glucose"), u.fmt_unit(r.mean), ""),
         stat(
-            "Glucose management indicator (GMI)",
+            tr!("Glucose management indicator (GMI)"),
             format!("{:.1} % · {:.0} mmol/mol", r.gmi_pct, r.gmi_mmol_mol),
-            "approximate HbA1c from average CGM glucose",
+            tr!("approximate HbA1c from average CGM glucose"),
         ),
         stat(
-            "Estimated HbA1c (eA1c)",
+            tr!("Estimated HbA1c (eA1c)"),
             format!("{:.1} % · {:.0} mmol/mol", r.ea1c_pct, r.ea1c_mmol_mol),
-            "ADAG formula",
+            tr!("ADAG formula"),
         ),
-        stat("Glucose variability (CV)", format!("{:.1} %", r.cv_pct), "goal ≤ 36 %"),
-        stat("Standard deviation", u.fmt_unit(r.sd), ""),
+        stat(tr!("Glucose variability (CV)"), format!("{:.1} %", r.cv_pct), tr!("goal ≤ 36 %")),
+        stat(tr!("Standard deviation"), u.fmt_unit(r.sd), ""),
     ];
 
     let tir = tir_rows(r, u, target_low, target_high);
@@ -651,7 +660,7 @@ pub fn report_model(r: &Report, notes: &[Note], units: Units, target_low: f32, t
     };
 
     ReportModel {
-        title: "Glucose report".into(),
+        title: tr!("Glucose report").into(),
         subtitle,
         stats,
         tir,
@@ -666,7 +675,7 @@ pub fn report_model(r: &Report, notes: &[Note], units: Units, target_low: f32, t
             .insights
             .iter()
             .map(|i| Insight {
-                label: s(i.label),
+                label: s(i18n::tr(i.label)),
                 low: light(i.low_likelihood),
                 median: light(i.median_vs_goal),
                 variability: light(i.variability_below_median),
@@ -684,10 +693,10 @@ pub fn report_model(r: &Report, notes: &[Note], units: Units, target_low: f32, t
 pub fn age_text(t: DateTime<Utc>) -> String {
     let mins = (Utc::now() - t).num_minutes();
     match mins {
-        i64::MIN..=0 => "just now".into(),
-        1..=59 => format!("{mins} min ago"),
-        60..=1439 => format!("{} h ago", mins / 60),
-        _ => t.with_timezone(&Local).format("%d %b %H:%M").to_string(),
+        i64::MIN..=0 => tr!("just now").into(),
+        1..=59 => tr!("{} min ago", mins),
+        60..=1439 => tr!("{} h ago", mins / 60),
+        _ => i18n::date(t.with_timezone(&Local).format("%d %b %H:%M")),
     }
 }
 
