@@ -42,6 +42,8 @@ use serde::{Deserialize, Serialize};
 use tokio::io::{AsyncRead, AsyncWrite};
 use tower_http::add_extension::AddExtension;
 
+mod report;
+
 const VERSION: &str = env!("CARGO_PKG_VERSION");
 const MAX_RANGE_DAYS: i64 = 400;
 /// Failed authentication / pairing attempts per IP before a temporary ban.
@@ -489,6 +491,16 @@ struct AppState {
 }
 
 impl AppState {
+    fn new(cfg: Config, patients: Vec<PatientInfo>) -> AppState {
+        AppState {
+            patients: RwLock::new(patients.into_iter().map(|p| (p.id.clone(), p)).collect()),
+            stores: Mutex::new(HashMap::new()),
+            clients: Mutex::new((ClientsFile::default(), None)),
+            limiter: Limiter::default(),
+            cfg,
+        }
+    }
+
     fn store_dir(&self, patient_id: &str) -> PathBuf {
         let h = sync::hash_token(patient_id);
         self.cfg.data_dir.join("patients").join(&h[..16])
@@ -1035,6 +1047,10 @@ async fn main() -> Result<()> {
             println!("{}", tls.fingerprint);
             Ok(())
         }
+        "report" => {
+            let known: PatientsFile = read_json(&patients_path(&cfg.data_dir))?;
+            report::command(Arc::new(AppState::new(cfg, known.patients)), &args[1..]).await
+        }
         "--version" | "version" => {
             println!("gllu-server {VERSION}");
             Ok(())
@@ -1042,10 +1058,17 @@ async fn main() -> Result<()> {
         _ => {
             println!(
                 "gllu-server {VERSION}\n\nUSAGE: gllu-server [serve | pair [--ttl MIN] [--url URL] | clients | revoke ID|--all |\n\
-                 \u{20}                  close-pairing | fingerprint]\n\n\
+                 \u{20}                  close-pairing | fingerprint |\n\
+                 \u{20}                  report --send-now daily|weekly|monthly | report --preview FILE.pdf [daily|weekly|monthly]]\n\n\
                  Environment: LLU_EMAIL, LLU_PASSWORD[_FILE], LLU_SERVER, GLLU_DATA_DIR, GLLU_LISTEN,\n\
                  GLLU_PUBLIC_URL, GLLU_TLS_SANS, GLLU_TLS_CERT/GLLU_TLS_KEY, GLLU_DATA_PASSPHRASE[_FILE],\n\
-                 GLLU_ALLOW_CIDRS, GLLU_POLL_SECONDS, GLLU_NAME"
+                 GLLU_ALLOW_CIDRS, GLLU_POLL_SECONDS, GLLU_NAME\n\n\
+                 Email reports (off unless GLLU_SMTP_URL is set): GLLU_SMTP_URL (smtps://user@host:465 or\n\
+                 smtp://user@host:587 with STARTTLS), GLLU_SMTP_PASSWORD[_FILE], GLLU_REPORT_FROM, GLLU_REPORT_TO\n\
+                 (comma-separated), GLLU_REPORT_SCHEDULE (daily,weekly,monthly; default monthly), GLLU_REPORT_TIME\n\
+                 (HH:MM local time, default 07:00, time zone from TZ), GLLU_REPORT_ZIP_PASSWORD[_FILE] (PDF in an\n\
+                 AES-256 ZIP, no values in the email), GLLU_TARGET_LOW/GLLU_TARGET_HIGH (mg/dL), GLLU_UNITS\n\
+                 (mmol|mg), GLLU_LANG (en|de)"
             );
             Ok(())
         }
@@ -1092,13 +1115,11 @@ async fn serve_with(cfg: Config, handle: axum_server::Handle<SocketAddr>) -> Res
             .handshake_timeout(Duration::from_secs(10)),
     );
     let listen = cfg.listen;
-    let state = Arc::new(AppState {
-        patients: RwLock::new(known.patients.into_iter().map(|p| (p.id.clone(), p)).collect()),
-        stores: Mutex::new(HashMap::new()),
-        clients: Mutex::new((ClientsFile::default(), None)),
-        limiter: Limiter::default(),
-        cfg,
-    });
+    let reports = report::ReportConfig::from_env().context("email reports")?;
+    let state = Arc::new(AppState::new(cfg, known.patients));
+    if let Some(rc) = reports {
+        tokio::spawn(report::scheduler(state.clone(), rc));
+    }
     if state.cfg.demo {
         tracing::warn!("GLLU_DEMO is set – serving synthetic data, LibreLinkUp is not polled");
         tokio::spawn(demo_poller(state.clone()));

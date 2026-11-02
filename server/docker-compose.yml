@@ -29,9 +29,22 @@ services:
       GLLU_NAME: "Home server"
       # optional: force a LibreLinkUp region, e.g. https://api-eu2.libreview.io
       # LLU_SERVER: ""
+      # time zone for the email reports and the daily boundaries
+      TZ: "Europe/Vienna"
+      # optional: email reports (see server/README.md → Email reports)
+      # GLLU_SMTP_URL: "smtps://reports@example.com@mail.example.com:465"
+      # GLLU_SMTP_PASSWORD_FILE: /run/secrets/smtp_password
+      # GLLU_REPORT_FROM: "Glucose reports <reports@example.com>"
+      # GLLU_REPORT_TO: "me@example.com,doctor@example.com"
+      # GLLU_REPORT_SCHEDULE: "weekly,monthly"
+      # GLLU_REPORT_TIME: "07:00"
+      # PDF inside an AES-256 ZIP, no values in the email body:
+      # GLLU_REPORT_ZIP_PASSWORD_FILE: /run/secrets/zip_password
     secrets:
       - llu_password
       - data_passphrase
+      # - smtp_password
+      # - zip_password
     volumes:
       - gllu-data:/data
     # hardening: no privileges, read-only image, nothing but the data volume is writable
@@ -51,6 +64,10 @@ secrets:
     file: ./llu_password.txt
   data_passphrase:
     file: ./data_passphrase.txt
+  # smtp_password:
+  #   file: ./smtp_password.txt
+  # zip_password:
+  #   file: ./zip_password.txt
 
 volumes:
   gllu-data:

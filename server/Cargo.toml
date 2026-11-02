@@ -1,6 +1,6 @@
 [package]
 name = "gllu-server"
-version = "1.1.0"
+version = "1.2.0"
 edition = "2024"
 description = "Always-on caching server for Genius LibreLinkUp: polls LibreLinkUp and serves the history to paired desktop apps"
 license = "GPL-3.0-only"
@@ -26,6 +26,8 @@ tower = { version = "0.5.3", features = ["limit", "util"] }
 tower-http = { version = "0.7.1", features = ["timeout", "add-extension"] }
 tracing = "0.1.44"
 tracing-subscriber = { version = "0.3.23", features = ["env-filter"] }
+lettre = { version = "0.11.23", default-features = false, features = ["smtp-transport", "builder", "hostname", "tokio1-rustls", "aws-lc-rs", "webpki-roots"] }
 
 [dev-dependencies]
+chrono-tz = "0.10.4"
 reqwest = { version = "0.13.5", default-features = false, features = ["rustls"] }

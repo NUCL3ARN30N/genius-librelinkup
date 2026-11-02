@@ -284,6 +284,31 @@ fn daily_profiles(readings: &[Reading], from: DateTime<Utc>, to: DateTime<Utc>) 
     days
 }
 
+/// Number of episodes in which `pred` holds for at least `min_minutes` in a row (sorted readings;
+/// a gap of more than 30 minutes ends an episode).
+pub fn episodes(readings: &[Reading], pred: impl Fn(f32) -> bool, min_minutes: i64) -> usize {
+    let mut count = 0;
+    let mut start: Option<DateTime<Utc>> = None;
+    let mut last: Option<DateTime<Utc>> = None;
+    let mut counted = false;
+    for r in readings {
+        let gap = last.is_some_and(|l| r.time - l > Duration::minutes(30));
+        if !pred(r.mg_dl) || gap {
+            start = None;
+            counted = false;
+        }
+        if pred(r.mg_dl) {
+            let s = *start.get_or_insert(r.time);
+            if !counted && r.time - s >= Duration::minutes(min_minutes) {
+                count += 1;
+                counted = true;
+            }
+        }
+        last = Some(r.time);
+    }
+    count
+}
+
 /// Insulin and carbohydrates recorded in the notes of one local day.
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct DayTotals {
@@ -433,6 +458,20 @@ mod tests {
         assert_eq!(s.avg_insulin_u(), 14.25);
         assert_eq!(s.avg_custom, vec![("Afrezza".to_string(), 2.0)]);
         assert_eq!(summarize_totals(&[]).avg_rapid_u, 0.0);
+    }
+
+    #[test]
+    fn counts_episodes() {
+        let start = DateTime::from_timestamp(1_767_225_600, 0).unwrap();
+        // 5-minute readings: low for 20 min, normal, low for 10 min only, gap, low for 15 min
+        let values = [60.0, 60.0, 60.0, 60.0, 60.0, 100.0, 60.0, 60.0, 60.0, 100.0];
+        let mut readings: Vec<Reading> =
+            values.iter().enumerate().map(|(i, v)| Reading { time: start + Duration::minutes(5 * i as i64), mg_dl: *v, trend: 3 }).collect();
+        let later = start + Duration::hours(3);
+        readings.extend((0..4).map(|i| Reading { time: later + Duration::minutes(5 * i), mg_dl: 65.0, trend: 3 }));
+        assert_eq!(episodes(&readings, |v| v < 70.0, 15), 2);
+        assert_eq!(episodes(&readings, |v| v < 70.0, 10), 3);
+        assert_eq!(episodes(&readings, |v| v > 180.0, 15), 0);
     }
 
     #[test]

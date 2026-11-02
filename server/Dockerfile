@@ -6,7 +6,7 @@ RUN cargo build -p gllu-server --release --locked
 
 FROM debian:bookworm-slim
 RUN apt-get update \
- && apt-get install -y --no-install-recommends ca-certificates tini \
+ && apt-get install -y --no-install-recommends ca-certificates tini tzdata \
  && rm -rf /var/lib/apt/lists/* \
  && useradd --system --uid 10001 --home-dir /data gllu \
  && mkdir -p /data && chown gllu:gllu /data && chmod 0700 /data

@@ -109,8 +109,39 @@ The service runs as the unprivileged user `gllu` with a hardened systemd unit; d
 | `GLLU_DEMO=1` | – | synthetic data, no LibreLinkUp (try it out) |
 
 Commands: `serve` (default), `pair [--ttl MIN] [--url URL]`, `clients`, `revoke ID|--all`,
-`close-pairing`, `fingerprint`.
+`close-pairing`, `fingerprint`, `report --send-now daily|weekly|monthly`,
+`report --preview FILE.pdf [daily|weekly|monthly]`.
 A pairing code is also printed to the log on the first start while no client is paired.
+
+## Email reports
+
+With `GLLU_SMTP_URL` set, the server emails a report with the printable PDF (statistics, time in
+ranges, AGP, daily profiles) on a schedule:
+
+- **daily** – yesterday, with time in range, average, GMI and the number of lows and highs in the
+  email itself;
+- **weekly** – the last Monday to Sunday;
+- **monthly** – the previous calendar month.
+
+| Variable | Default | |
+|---|---|---|
+| `GLLU_SMTP_URL` | – | `smtps://user@host:465` (TLS) or `smtp://user@host:587` (STARTTLS required). The user may be an email address (`smtps://me@example.com@mail.example.com`). `smtp://host:25?tls=none` sends unencrypted – only for a relay on the same host or network |
+| `GLLU_SMTP_PASSWORD` / `_FILE` | – | SMTP password (never written to the log) |
+| `GLLU_REPORT_FROM` | the SMTP user | sender, e.g. `Glucose reports <reports@example.com>` |
+| `GLLU_REPORT_TO` | – | recipients, comma-separated |
+| `GLLU_REPORT_SCHEDULE` | `monthly` | any of `daily,weekly,monthly` |
+| `GLLU_REPORT_TIME` | `07:00` | local time the reports go out; the time zone comes from `TZ` (e.g. `Europe/Vienna`) |
+| `GLLU_REPORT_ZIP_PASSWORD` / `_FILE` | – | put the PDF into an AES-256 ZIP (opens with 7-Zip, WinRAR, Keka); the email then contains no glucose values |
+| `GLLU_TARGET_LOW`, `GLLU_TARGET_HIGH` | from LibreLinkUp | target range in mg/dL |
+| `GLLU_UNITS` | from LibreLinkUp | `mmol` or `mg` |
+| `GLLU_LANG` | `en` | `en` or `de` |
+
+The last period sent is kept per schedule in `reports.json` in the data folder: a restart does
+not send a report twice, and after the server was down only the latest missed report is sent.
+The first scheduled report goes out at the next due time – try the setup with
+`gllu-server report --send-now daily` (Docker: `docker exec gllu gllu-server report --send-now daily`)
+or write a PDF with `gllu-server report --preview /data/preview.pdf`. Sent and failed reports
+are recorded in the audit log; a failed report is retried every 15 minutes.
 
 ## API (v1)
 

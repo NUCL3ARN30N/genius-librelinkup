@@ -3,6 +3,12 @@
 The app shows the entry of its own version under **About**. Release notes on GitHub are taken
 from here as well.
 
+## [1.2.0] – 2026-11-02
+
+### Added
+- Caching server: scheduled email reports. With `GLLU_SMTP_URL` set, `gllu-server` emails a daily (yesterday), weekly (last Monday to Sunday) and/or monthly (previous month) report with the PDF attached – daily emails also show time in range, average, GMI and the number of lows and highs. Optionally the PDF goes into an AES-256 ZIP and the email carries no glucose values. A restart never sends a report twice, and after downtime the latest missed report is sent once. `gllu-server report --send-now daily|weekly|monthly` tests the setup, `gllu-server report --preview FILE.pdf` writes a report. See the server README for all settings.
+- The server's Docker image includes the time zone database (set `TZ`, e.g. `Europe/Vienna`).
+
 ## [1.1.0] – 2026-11-02
 
 ### Added
