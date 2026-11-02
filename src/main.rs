@@ -342,8 +342,22 @@ fn wire_callbacks(ui: &AppWindow, tx: &mpsc::UnboundedSender<Cmd>, devlog: &devl
         }
     });
     let t = tx.clone();
-    e.on_send(move |range, to, password, repeat| {
-        send!(t, Cmd::SendExport { all: range == 1, to: to.trim().to_string(), password: password.to_string(), repeat: repeat.to_string() })
+    e.on_save_pdf(move |range| {
+        let name = format!("glucose-report-{}.pdf", chrono::Local::now().format("%Y-%m-%d"));
+        if let Some(p) = rfd::FileDialog::new().set_file_name(name).add_filter("PDF", &["pdf"]).save_file() {
+            send!(t, Cmd::ExportPdf(p, range == 1))
+        }
+    });
+    let t = tx.clone();
+    e.on_send(move |range, format, to, password, repeat| {
+        send!(t, Cmd::SendExport {
+            all: range == 1,
+            csv: format != 1,
+            pdf: format != 0,
+            to: to.trim().to_string(),
+            password: password.to_string(),
+            repeat: repeat.to_string(),
+        })
     });
 
     ui.global::<About>().on_open_link(|i| {

@@ -4,6 +4,7 @@ pub mod api;
 pub mod demo;
 pub mod devlog;
 pub mod export;
+pub mod report_pdf;
 pub mod stats;
 pub mod store;
 pub mod sync;

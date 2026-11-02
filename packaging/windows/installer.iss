@@ -30,6 +30,8 @@ UsePreviousGroup=no
 [Files]
 Source: "..\..\target\release\genius-librelinkup.exe"; DestDir: "{app}"; Flags: ignoreversion
 Source: "..\..\assets\app.ico"; DestDir: "{app}"; DestName: "genius-librelinkup.ico"; Flags: ignoreversion
+; licence of the Noto Sans font embedded for the PDF reports
+Source: "..\..\core\assets\fonts\OFL.txt"; DestDir: "{app}"; DestName: "fonts-OFL.txt"; Flags: ignoreversion
 
 [Icons]
 Name: "{group}\Genius LibreLinkUp"; Filename: "{app}\genius-librelinkup.exe"; AppUserModelID: "io.genius-librelinkup"

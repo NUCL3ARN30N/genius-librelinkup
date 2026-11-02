@@ -72,4 +72,6 @@ assets = [
     ["packaging/linux/genius-librelinkup.desktop", "usr/share/applications/", "644"],
     ["assets/icon-256.png", "usr/share/icons/hicolor/256x256/apps/genius-librelinkup.png", "644"],
     ["README.md", "usr/share/doc/genius-librelinkup/README.md", "644"],
+    # licence of the Noto Sans font embedded for the PDF reports
+    ["core/assets/fonts/OFL.txt", "usr/share/doc/genius-librelinkup/fonts-OFL.txt", "644"],
 ]

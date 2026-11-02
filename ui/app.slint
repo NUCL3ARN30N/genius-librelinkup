@@ -195,13 +195,16 @@ export global Notes {
     }
 }
 
-// The export dialog on the Reports page: a CSV file, or an encrypted ZIP attached to an email.
+// The export dialog on the Reports page: a CSV file, a PDF report, or both in an encrypted ZIP
+// attached to an email.
 export global ExportBridge {
     // a glucose log is loaded
     in property <bool> available;
     in-out property <bool> open;
     // 0 the selected report period, 1 all data
     in-out property <int> range;
+    // what goes into the email: 0 CSV, 1 PDF report, 2 both
+    in-out property <int> format: 2;
     in-out property <string> recipient;
     in-out property <string> password;
     in-out property <string> repeat;
@@ -209,8 +212,9 @@ export global ExportBridge {
     in property <bool> busy;
     // (range)
     callback save-csv(int);
-    // (range, recipient, password, repeat)
-    callback send(int, string, string, string);
+    callback save-pdf(int);
+    // (range, format, recipient, password, repeat)
+    callback send(int, int, string, string, string);
 
     public function show() {
         ExportBridge.password = "";
@@ -2335,11 +2339,11 @@ export component AppWindow inherits Window {
             x: (parent.width - self.width) / 2;
             y: (parent.height - self.height) / 2;
             width: 560px;
-            height: ExportBridge.error != "" ? 650px : 590px;
+            height: ExportBridge.error != "" ? 700px : 640px;
             title: "Export glucose data";
             icon: Icons.download;
             Caption {
-                text: "Readings and notes of the chosen period as a CSV file – it opens in Excel or LibreOffice and can be imported here again.";
+                text: "A printable PDF report (statistics, AGP, daily profiles, notes) or the readings and notes as a CSV file – it opens in Excel or LibreOffice and can be imported here again.";
                 font-size: 13px;
             }
             Segmented {
@@ -2348,6 +2352,14 @@ export component AppWindow inherits Window {
             }
             HorizontalLayout {
                 alignment: start;
+                spacing: 8px;
+                MButton {
+                    text: "Save PDF…";
+                    kind: 1;
+                    icon: Icons.download;
+                    enabled: !ExportBridge.busy;
+                    clicked => { ExportBridge.save-pdf(ExportBridge.range); }
+                }
                 MButton {
                     text: "Save CSV…";
                     kind: 1;
@@ -2365,10 +2377,23 @@ export component AppWindow inherits Window {
                 text: "The data is packed into a ZIP file encrypted with AES-256 and attached to a new message in your mail program. Tell the recipient the password another way (phone, messenger) – the file opens with 7-Zip, WinRAR or Keka.";
                 font-size: 13px;
             }
-            TextField {
-                label: "To (optional)";
-                placeholder: "doctor@example.com";
-                text <=> ExportBridge.recipient;
+            HorizontalLayout {
+                spacing: 12px;
+                TextField {
+                    horizontal-stretch: 1;
+                    label: "To (optional)";
+                    placeholder: "doctor@example.com";
+                    text <=> ExportBridge.recipient;
+                }
+                VerticalLayout {
+                    width: 230px;
+                    spacing: 4px;
+                    Caption { text: "Attach"; }
+                    Segmented {
+                        options: ["CSV", "PDF", "Both"];
+                        selected <=> ExportBridge.format;
+                    }
+                }
             }
             HorizontalLayout {
                 spacing: 12px;
@@ -2383,7 +2408,7 @@ export component AppWindow inherits Window {
                     label: "Repeat password";
                     input-type: password;
                     text <=> ExportBridge.repeat;
-                    accepted => { ExportBridge.send(ExportBridge.range, ExportBridge.recipient, ExportBridge.password, ExportBridge.repeat); }
+                    accepted => { ExportBridge.send(ExportBridge.range, ExportBridge.format, ExportBridge.recipient, ExportBridge.password, ExportBridge.repeat); }
                 }
             }
             if ExportBridge.error != "": Banner { text: ExportBridge.error; }
@@ -2407,7 +2432,7 @@ export component AppWindow inherits Window {
                     kind: 0;
                     icon: Icons.mail;
                     enabled: !ExportBridge.busy && ExportBridge.password != "";
-                    clicked => { ExportBridge.send(ExportBridge.range, ExportBridge.recipient, ExportBridge.password, ExportBridge.repeat); }
+                    clicked => { ExportBridge.send(ExportBridge.range, ExportBridge.format, ExportBridge.recipient, ExportBridge.password, ExportBridge.repeat); }
                 }
             }
         }

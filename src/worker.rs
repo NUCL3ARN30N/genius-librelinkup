@@ -44,8 +44,10 @@ pub enum Cmd {
     ImportSettings(std::path::PathBuf),
     /// (file, all data instead of the report period)
     ExportCsv(std::path::PathBuf, bool),
-    /// encrypted ZIP attached to a new email
-    SendExport { all: bool, to: String, password: String, repeat: String },
+    /// (file, all data instead of the report period)
+    ExportPdf(std::path::PathBuf, bool),
+    /// encrypted ZIP with the CSV and/or the PDF report, attached to a new email
+    SendExport { all: bool, csv: bool, pdf: bool, to: String, password: String, repeat: String },
     ImportCsv(std::path::PathBuf),
     OpenDataFolder,
     ClearDevLog,
@@ -1213,7 +1215,14 @@ impl Worker {
                     Err(e) => self.settings_message(format!("Export failed: {e:#}")),
                 }
             }
-            Cmd::SendExport { all, to, password, repeat } => self.send_export(all, to, &password, &repeat),
+            Cmd::ExportPdf(path, all) => {
+                let res = self.pdf(all).and_then(|pdf| Ok(std::fs::write(&path, pdf)?));
+                match res {
+                    Ok(()) => self.settings_message(format!("Report saved to {}", path.display())),
+                    Err(e) => self.settings_message(format!("Export failed: {e:#}")),
+                }
+            }
+            Cmd::SendExport { all, csv, pdf, to, password, repeat } => self.send_export(all, csv, pdf, to, &password, &repeat),
             Cmd::ImportCsv(path) => {
                 let res = match &mut self.store {
                     Some(st) => st.import_csv(&path),
@@ -1350,8 +1359,34 @@ impl Worker {
         }
     }
 
+    /// The PDF report of the export range.
+    fn pdf(&self, all: bool) -> anyhow::Result<Vec<u8>> {
+        let st = self.store.as_ref().ok_or_else(|| anyhow::anyhow!("the glucose log is not loaded"))?;
+        let now = Utc::now();
+        let from = if all { st.first_time().unwrap_or(now) } else { self.report_from() };
+        let readings = self.readings_between(from, now + Duration::minutes(1));
+        if readings.is_empty() {
+            anyhow::bail!("there are no readings in this period");
+        }
+        let report = stats::build_report(&readings, from, now, self.s.target_low, self.s.target_high, 154.0);
+        let notes = self.notes_between(from, now + Duration::minutes(1));
+        let totals = stats::daily_totals(&notes, from, now);
+        let date = |t: DateTime<Utc>| t.with_timezone(&Local).format("%d %b %Y").to_string();
+        let opts = gllu_core::report_pdf::PdfOptions {
+            title: "Glucose report".into(),
+            patient: self.patient.as_ref().map(|p| format!("{} {}", p.first_name, p.last_name).trim().to_string()).unwrap_or_default(),
+            period: format!("{} – {}", date(from), date(now)),
+            generated: Local::now().format("%Y-%m-%d %H:%M").to_string(),
+            mmol: !self.units().mg_dl,
+            target_low: self.s.target_low,
+            target_high: self.s.target_high,
+            lang: "en".into(),
+        };
+        gllu_core::report_pdf::render(&report, &notes, &totals, &opts)
+    }
+
     /// Writes the encrypted ZIP and opens a new email with it attached; errors stay in the dialog.
-    fn send_export(&mut self, all: bool, to: String, password: &str, repeat: &str) {
+    fn send_export(&mut self, all: bool, with_csv: bool, with_pdf: bool, to: String, password: &str, repeat: &str) {
         self.ui(|w| w.global::<ExportBridge>().set_busy(true));
         let result = (|| -> anyhow::Result<mail::Draft> {
             gllu_core::export::check_password(password, repeat)?;
@@ -1365,7 +1400,16 @@ impl Worker {
             let dir = self.export_folder();
             std::fs::create_dir_all(&dir)?;
             let path = dir.join(format!("{stem}.zip"));
-            gllu_core::export::write_encrypted_zip(&path, &[(&format!("{stem}.csv"), &csv)], password)?;
+            let pdf = if with_pdf { Some(self.pdf(all)?) } else { None };
+            let (csv_name, pdf_name) = (format!("{stem}.csv"), format!("{stem}-report.pdf"));
+            let mut entries: Vec<(&str, &[u8])> = Vec::new();
+            if with_csv || pdf.is_none() {
+                entries.push((&csv_name, &csv));
+            }
+            if let Some(pdf) = &pdf {
+                entries.push((&pdf_name, pdf));
+            }
+            gllu_core::export::write_encrypted_zip(&path, &entries, password)?;
             Ok(mail::Draft {
                 to,
                 subject: format!("Glucose data {from} – {to_date}"),

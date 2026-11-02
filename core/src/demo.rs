@@ -42,9 +42,11 @@ pub fn readings(from: DateTime<Utc>, to: DateTime<Utc>, step_secs: i64) -> Vec<R
     out
 }
 
-/// Meals with rapid-acting insulin and an evening long-acting dose on most days of `[from, to]`
-/// (as `(time, text, treatment, carbs)`, ready for [`crate::store::Store::add_note`]).
-pub fn notes(from: DateTime<Utc>, to: DateTime<Utc>) -> Vec<(DateTime<Utc>, String, Option<Treatment>, Option<f32>)> {
+/// (time, text, treatment, carbs), ready for [`crate::store::Store::add_note`]
+pub type DemoNote = (DateTime<Utc>, String, Option<Treatment>, Option<f32>);
+
+/// Meals with rapid-acting insulin and an evening long-acting dose on most days of `[from, to]`.
+pub fn notes(from: DateTime<Utc>, to: DateTime<Utc>) -> Vec<DemoNote> {
     let mut out = Vec::new();
     let first = from.with_timezone(&Local).date_naive();
     let last = to.with_timezone(&Local).date_naive();

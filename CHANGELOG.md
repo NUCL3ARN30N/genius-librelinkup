@@ -6,7 +6,8 @@ from here as well.
 ## [1.1.0] – 2026-11-02
 
 ### Added
-- Export on the Reports page: the new **Export…** button saves the readings and notes of the selected report period (or of all data) as a CSV file, or packs them into a ZIP file encrypted with AES-256 and attaches it to a new email in your mail program (Outlook, Thunderbird and other programs that support Simple MAPI on Windows, the desktop's mail program on Linux). Tell the recipient the password another way; the file opens with 7-Zip, WinRAR or Keka.
+- Printable PDF report: statistics, time in ranges, insulin & carbs, the AGP with pattern insights, the daily profiles (seven days per page, with note markers and daily totals) and the list of notes, on A4 pages. The font is built in, so the report looks the same everywhere.
+- Export on the Reports page: the new **Export…** button saves the selected report period (or all data) as a PDF report or a CSV file, or packs the CSV, the PDF or both into a ZIP file encrypted with AES-256 and attaches it to a new email in your mail program (Outlook, Thunderbird and other programs that support Simple MAPI on Windows, the desktop's mail program on Linux). Tell the recipient the password another way; the file opens with 7-Zip, WinRAR or Keka.
 - Insulin and carbs in notes: a note can record rapid-acting or long-acting insulin, or a treatment you name yourself, with the units given, and the carbohydrates eaten (a decimal comma works too). They are shown in the graph tooltips, included in the CSV export and import, and read from LibreView exports ("Rapid-Acting Insulin", "Long-Acting Insulin" and "Carbohydrates" columns).
 - Note markers are coloured by what they record: blue for insulin, orange for carbs, grey for other notes – in the graphs and in the daily profiles calendar.
 - Reports: a new "Insulin & carbs" card with the average daily rapid-acting, long-acting and total insulin, the carbs per day and a bar chart of every day of the period.

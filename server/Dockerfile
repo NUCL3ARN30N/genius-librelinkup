@@ -11,6 +11,8 @@ RUN apt-get update \
  && useradd --system --uid 10001 --home-dir /data gllu \
  && mkdir -p /data && chown gllu:gllu /data && chmod 0700 /data
 COPY --from=build /src/target/release/gllu-server /usr/local/bin/gllu-server
+# licence of the Noto Sans font embedded in the PDF reports
+COPY --from=build /src/core/assets/fonts/OFL.txt /usr/share/doc/gllu-server/fonts-OFL.txt
 ENV GLLU_DATA_DIR=/data \
     GLLU_LISTEN=0.0.0.0:8443
 VOLUME /data
