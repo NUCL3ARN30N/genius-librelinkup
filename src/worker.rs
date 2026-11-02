@@ -64,6 +64,8 @@ pub enum Cmd {
     /// Deletes everything stored on this computer (true: including the glucose log), then quits.
     WipeLocalData(bool),
     PairServer(String, bool),
+    /// mute alerts (except urgent lows) for this many minutes; 0 resumes them
+    Snooze(u32),
     Unpair,
     SyncNow,
     SyncSource(bool),
@@ -78,6 +80,8 @@ struct Worker {
     client: Client,
     devlog: DevLog,
     ui: Weak<AppWindow>,
+    /// commands to itself (the snooze button of a notification)
+    tx: mpsc::UnboundedSender<Cmd>,
     password: Option<String>,
     logged_in: bool,
     pending: Option<(PendingStep, String, String, bool)>,
@@ -110,7 +114,7 @@ pub async fn run(
     settings: Settings,
     devlog: DevLog,
     ui: Weak<AppWindow>,
-    mut rx: mpsc::UnboundedReceiver<Cmd>,
+    (tx, mut rx): (mpsc::UnboundedSender<Cmd>, mpsc::UnboundedReceiver<Cmd>),
     demo: bool,
 ) {
     let client = Client::new(
@@ -123,6 +127,7 @@ pub async fn run(
         client,
         devlog,
         ui,
+        tx,
         password: None,
         logged_in: false,
         pending: None,
@@ -297,6 +302,14 @@ impl Worker {
             notify_stale: s.notify_stale,
             stale_minutes: s.stale_minutes as i32,
             repeat_minutes: s.notify_repeat_minutes as i32,
+            notify_falling: s.notify_falling,
+            notify_rising: s.notify_rising,
+            fast_rate: u.fmt_rate_number(s.fast_rate).into(),
+            notify_predicted: s.notify_predicted_low,
+            predict_minutes: s.predict_minutes as i32,
+            quiet_hours: s.quiet_hours,
+            quiet_from: s.quiet_from.clone().into(),
+            quiet_to: s.quiet_to.clone().into(),
             log_enabled: s.log_enabled,
             log_dir: s.log_dir.clone().into(),
             remember_passphrase: s.remember_passphrase,
@@ -449,6 +462,10 @@ impl Worker {
             ),
         };
 
+        let tooltip = match self.alerts.snoozed_until(Utc::now()) {
+            Some(t) => format!("{tooltip}\nAlerts snoozed until {}", t.with_timezone(&Local).format("%H:%M")),
+            None => tooltip,
+        };
         let trend_index = latest.filter(|_| !stale).map(|r| r.trend as i32).unwrap_or(0);
         let unit: SharedString = u.label().into();
         self.ui(move |w| {
@@ -1015,30 +1032,48 @@ impl Worker {
     }
 
     fn check_alerts(&mut self, latest: Option<Reading>) {
-        let Some(kind) = self.alerts.evaluate(&self.s, latest.as_ref(), Utc::now()) else { return };
+        let mut recent = self.recent(1);
+        if let Some(l) = latest
+            && recent.last().is_none_or(|r| r.time < l.time)
+        {
+            recent.push(l);
+        }
+        let Some(alert) = self.alerts.evaluate(&self.s, &recent, Utc::now()) else { return };
+        let Some(r) = recent.last().copied() else { return };
         let u = self.units();
-        let Some(r) = latest else { return };
         let (arrow, _) = trend_arrow(r.trend);
-        match kind {
-            AlertKind::Low => alerts::show(
-                &format!("Low glucose: {} {arrow}", u.fmt_unit(r.mg_dl)),
-                &format!("Measured {}.", ui_model::age_text(r.time)),
+        let measured = format!("Measured {}.", ui_model::age_text(r.time));
+        let rate = alert.slope.map(|s| format!(" Changing by {} per minute.", u.fmt_rate(s))).unwrap_or_default();
+        let value = u.fmt_unit(r.mg_dl);
+        let (title, body, urgent) = match alert.kind {
+            AlertKind::Stale => (
+                "No new glucose data".to_string(),
+                format!("Last reading {value} at {}.", r.time.with_timezone(&Local).format("%H:%M")),
+                false,
+            ),
+            AlertKind::UrgentLow => (format!("Urgent low: {value} {arrow}"), measured, true),
+            AlertKind::Low => (format!("Low glucose: {value} {arrow}"), measured, true),
+            AlertKind::PredictedLow => (
+                format!("Low expected: {value} {arrow}"),
+                format!(
+                    "At this rate about {} in {} minutes.{rate}",
+                    u.fmt_unit(alert.predicted.unwrap_or(r.mg_dl).max(40.0)),
+                    self.s.predict_minutes
+                ),
                 true,
             ),
-            AlertKind::High => alerts::show(
-                &format!("High glucose: {} {arrow}", u.fmt_unit(r.mg_dl)),
-                &format!("Measured {}.", ui_model::age_text(r.time)),
-                false,
-            ),
-            AlertKind::Stale => alerts::show(
-                "No new glucose data",
-                &format!(
-                    "Last reading {} at {}.",
-                    u.fmt_unit(r.mg_dl),
-                    r.time.with_timezone(&Local).format("%H:%M")
-                ),
-                false,
-            ),
+            AlertKind::FallingFast => (format!("Falling fast: {value} {arrow}"), format!("{measured}{rate}"), false),
+            AlertKind::High => (format!("High glucose: {value} {arrow}"), measured, false),
+            AlertKind::RisingFast => (format!("Rising fast: {value} {arrow}"), format!("{measured}{rate}"), false),
+        };
+        if alert.kind == AlertKind::UrgentLow {
+            // snoozing never mutes urgent lows, so no snooze button
+            alerts::show(&title, &body, urgent);
+        } else {
+            let tx = self.tx.clone();
+            alerts::show_with_snooze(&title, &body, urgent, move || {
+                let _ = tx.send(Cmd::Snooze(30));
+            });
         }
     }
 
@@ -1292,6 +1327,15 @@ impl Worker {
                 self.save_settings();
             }
             Cmd::PairServer(code, source) => self.pair_server(code, source).await,
+            Cmd::Snooze(minutes) => {
+                let until = (minutes > 0).then(|| Utc::now() + Duration::minutes(minutes as i64));
+                self.alerts.snooze(until);
+                self.toast(match until {
+                    Some(t) => format!("Alerts snoozed until {} – urgent lows still notify", t.with_timezone(&Local).format("%H:%M")),
+                    None => "Alerts resumed".to_string(),
+                });
+                self.push_dashboard();
+            }
             Cmd::Unpair => {
                 self.unpair(None);
                 self.toast("Unpaired from the caching server");
@@ -1497,6 +1541,14 @@ impl Worker {
         s.notify_stale = ui.notify_stale;
         s.stale_minutes = ui.stale_minutes.max(0) as u32;
         s.notify_repeat_minutes = ui.repeat_minutes.max(0) as u32;
+        s.notify_falling = ui.notify_falling;
+        s.notify_rising = ui.notify_rising;
+        s.fast_rate = u.parse_rate(&ui.fast_rate).unwrap_or(s.fast_rate);
+        s.notify_predicted_low = ui.notify_predicted;
+        s.predict_minutes = ui.predict_minutes.max(0) as u32;
+        s.quiet_hours = ui.quiet_hours;
+        s.quiet_from = ui.quiet_from.trim().to_string();
+        s.quiet_to = ui.quiet_to.trim().to_string();
         s.log_enabled = ui.log_enabled;
         s.log_dir = ui.log_dir.trim().to_string();
         s.remember_passphrase = ui.remember_passphrase;

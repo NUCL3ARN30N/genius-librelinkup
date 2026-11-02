@@ -4,7 +4,7 @@
 use std::cell::RefCell;
 use std::sync::Arc;
 
-use tray_icon::menu::{Menu, MenuEvent, MenuItem, PredefinedMenuItem};
+use tray_icon::menu::{Menu, MenuEvent, MenuItem, PredefinedMenuItem, Submenu};
 use tray_icon::{MouseButton, MouseButtonState, TrayIcon, TrayIconBuilder, TrayIconEvent};
 
 use crate::config::TrayStyle;
@@ -13,6 +13,8 @@ use crate::trayicon::{self, Rgba};
 pub enum TrayAction {
     Show,
     Refresh,
+    /// minutes; 0 resumes the alerts
+    Snooze(u32),
     Quit,
 }
 
@@ -77,8 +79,26 @@ fn build(kind: Kind, content: &TrayContent, tooltip: &str) -> tray_icon::Result<
     let menu = Menu::new();
     let show = MenuItem::with_id("show", "Show Genius LibreLinkUp", true, None);
     let refresh = MenuItem::with_id("refresh", "Refresh now", true, None);
+    let snooze = Submenu::with_id_and_items(
+        "snooze",
+        "Snooze alerts",
+        true,
+        &[
+            &MenuItem::with_id("snooze-30", "30 minutes", true, None),
+            &MenuItem::with_id("snooze-60", "1 hour", true, None),
+            &MenuItem::with_id("snooze-120", "2 hours", true, None),
+            &PredefinedMenuItem::separator(),
+            &MenuItem::with_id("snooze-0", "Resume alerts", true, None),
+        ],
+    );
     let quit = MenuItem::with_id("quit", "Quit", true, None);
-    let _ = menu.append_items(&[&show, &refresh, &PredefinedMenuItem::separator(), &quit]);
+    let mut items: Vec<&dyn tray_icon::menu::IsMenuItem> = vec![&show, &refresh];
+    if let Ok(s) = &snooze {
+        items.push(s);
+    }
+    let separator = PredefinedMenuItem::separator();
+    items.extend([&separator as &dyn tray_icon::menu::IsMenuItem, &quit]);
+    let _ = menu.append_items(&items);
 
     let size = trayicon::tray_size();
     let mut builder = TrayIconBuilder::new()
@@ -116,7 +136,11 @@ pub fn init(on_action: impl Fn(TrayAction) + Send + Sync + 'static) -> bool {
         "show" => a(TrayAction::Show),
         "refresh" => a(TrayAction::Refresh),
         "quit" => a(TrayAction::Quit),
-        _ => {}
+        id => {
+            if let Some(minutes) = id.strip_prefix("snooze-").and_then(|m| m.parse().ok()) {
+                a(TrayAction::Snooze(minutes))
+            }
+        }
     }));
     TrayIconEvent::set_event_handler(Some(move |e: TrayIconEvent| match e {
         TrayIconEvent::Click { button: MouseButton::Left, button_state: MouseButtonState::Up, .. }

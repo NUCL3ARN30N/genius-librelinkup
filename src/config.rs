@@ -169,6 +169,17 @@ pub struct Settings {
     pub notify_stale: bool,
     pub stale_minutes: u32,
     pub notify_repeat_minutes: u32,
+    /// trend arrow straight down/up, or a slope over `fast_rate` mg/dL per minute
+    pub notify_falling: bool,
+    pub notify_rising: bool,
+    pub fast_rate: f32,
+    /// the trend of the last 20 minutes reaches the low threshold within `predict_minutes`
+    pub notify_predicted_low: bool,
+    pub predict_minutes: u32,
+    /// only urgent lows notify between `quiet_from` and `quiet_to` (local "HH:MM")
+    pub quiet_hours: bool,
+    pub quiet_from: String,
+    pub quiet_to: String,
 
     pub log_enabled: bool,
     /// Folder holding the (optionally encrypted) monthly log files. Empty = default data dir.
@@ -205,6 +216,14 @@ impl Default for Settings {
             notify_stale: false,
             stale_minutes: 20,
             notify_repeat_minutes: 15,
+            notify_falling: false,
+            notify_rising: false,
+            fast_rate: 2.0,
+            notify_predicted_low: true,
+            predict_minutes: 20,
+            quiet_hours: false,
+            quiet_from: "22:00".into(),
+            quiet_to: "07:00".into(),
             log_enabled: true,
             log_dir: String::new(),
             log_encrypted: true,
@@ -309,6 +328,15 @@ impl Settings {
         self.high_threshold = self.high_threshold.clamp(80.0, 450.0);
         self.stale_minutes = self.stale_minutes.clamp(5, 240);
         self.notify_repeat_minutes = self.notify_repeat_minutes.clamp(0, 240);
+        self.fast_rate = if self.fast_rate.is_finite() { self.fast_rate.clamp(0.5, 10.0) } else { 2.0 };
+        self.predict_minutes = self.predict_minutes.clamp(10, 30);
+        let defaults = Settings::default();
+        for (value, default) in [(&mut self.quiet_from, defaults.quiet_from), (&mut self.quiet_to, defaults.quiet_to)] {
+            match crate::alerts::parse_hhmm(value) {
+                Some(m) => *value = format!("{:02}:{:02}", m / 60, m % 60),
+                None => *value = default,
+            }
+        }
         let a = &mut self.appearance;
         a.graph_hours = match a.graph_hours {
             0..=4 => 3,

@@ -27,6 +27,15 @@ export struct UiSettings {
     notify-stale: bool,
     stale-minutes: int,
     repeat-minutes: int,
+    notify-falling: bool,
+    notify-rising: bool,
+    // in the shown unit per minute
+    fast-rate: string,
+    notify-predicted: bool,
+    predict-minutes: int,
+    quiet-hours: bool,
+    quiet-from: string,
+    quiet-to: string,
     log-enabled: bool,
     log-dir: string,
     remember-passphrase: bool,
@@ -752,6 +761,14 @@ component SettingsPage inherits Rectangle {
         notify-stale.checked = s.notify-stale;
         stale-min.value = s.stale-minutes;
         repeat-min.value = s.repeat-minutes;
+        notify-falling.checked = s.notify-falling;
+        notify-rising.checked = s.notify-rising;
+        fast-rate.text = s.fast-rate;
+        notify-predicted.checked = s.notify-predicted;
+        predict-min.value = s.predict-minutes;
+        quiet.checked = s.quiet-hours;
+        quiet-from.text = s.quiet-from;
+        quiet-to.text = s.quiet-to;
         log-enabled.checked = s.log-enabled;
         log-dir.text = s.log-dir;
         remember-pass.checked = s.remember-passphrase;
@@ -777,6 +794,14 @@ component SettingsPage inherits Rectangle {
             notify-stale: notify-stale.checked,
             stale-minutes: stale-min.value,
             repeat-minutes: repeat-min.value,
+            notify-falling: notify-falling.checked,
+            notify-rising: notify-rising.checked,
+            fast-rate: fast-rate.text,
+            notify-predicted: notify-predicted.checked,
+            predict-minutes: predict-min.value,
+            quiet-hours: quiet.checked,
+            quiet-from: quiet-from.text,
+            quiet-to: quiet-to.text,
             log-enabled: log-enabled.checked,
             log-dir: log-dir.text,
             remember-passphrase: remember-pass.checked,
@@ -991,6 +1016,63 @@ component SettingsPage inherits Rectangle {
                     }
                     HorizontalLayout {
                         spacing: 16px;
+                        notify-predicted := MSwitch {
+                            horizontal-stretch: 1;
+                            text: "Predicted low";
+                            supporting: "Notify when the trend of the last 20 minutes reaches the low threshold soon";
+                        }
+                        predict-min := Stepper {
+                            width: 140px;
+                            suffix: "min";
+                            minimum: 10;
+                            maximum: 30;
+                            step: 5;
+                            enabled: notify-predicted.checked;
+                        }
+                    }
+                    HorizontalLayout {
+                        spacing: 16px;
+                        VerticalLayout {
+                            horizontal-stretch: 1;
+                            spacing: 4px;
+                            notify-falling := MSwitch {
+                                text: "Falling fast";
+                                supporting: "Trend arrow straight down, or faster than the rate on the right";
+                            }
+                            notify-rising := MSwitch {
+                                text: "Rising fast";
+                                supporting: "Trend arrow straight up, or faster than the rate on the right";
+                            }
+                        }
+                        fast-rate := TextField {
+                            width: 140px;
+                            label: "Rate per minute";
+                            enabled: notify-falling.checked || notify-rising.checked;
+                        }
+                    }
+                    HorizontalLayout {
+                        spacing: 16px;
+                        quiet := MSwitch {
+                            horizontal-stretch: 1;
+                            text: "Quiet hours";
+                            supporting: "Only urgent lows (below 3.0 mmol/L · 54 mg/dL) notify; anything else in this time is not shown later either";
+                        }
+                        quiet-from := TextField {
+                            width: 90px;
+                            label: "From";
+                            placeholder: "22:00";
+                            enabled: quiet.checked;
+                        }
+                        quiet-to := TextField {
+                            width: 90px;
+                            label: "To";
+                            placeholder: "07:00";
+                            enabled: quiet.checked;
+                        }
+                    }
+                    Caption { text: "Snooze alerts from the tray icon's menu (30 minutes to 2 hours). Urgent lows are never snoozed."; }
+                    HorizontalLayout {
+                        spacing: 16px;
                         VerticalLayout {
                             horizontal-stretch: 1;
                             alignment: center;
@@ -998,7 +1080,7 @@ component SettingsPage inherits Rectangle {
                                 text: "Repeat active alerts";
                                 color: Theme.on-surface;
                             }
-                            Caption { text: "0 = notify only once per episode"; }
+                            Caption { text: "Low, high and no data; 0 = notify only once per episode"; }
                         }
                         repeat-min := Stepper {
                             width: 140px;

@@ -231,6 +231,9 @@ fn run_app(minimized: bool, dev: bool, demo: bool, listener: TcpListener) -> Res
                 tray::TrayAction::Refresh => {
                     let _ = tx.send(Cmd::Refresh);
                 }
+                tray::TrayAction::Snooze(minutes) => {
+                    let _ = tx.send(Cmd::Snooze(minutes));
+                }
                 tray::TrayAction::Quit => {
                     let _ = slint::quit_event_loop();
                 }
@@ -259,7 +262,7 @@ fn run_app(minimized: bool, dev: bool, demo: bool, listener: TcpListener) -> Res
     }
 
     let rt = tokio::runtime::Builder::new_multi_thread().worker_threads(2).enable_all().build()?;
-    rt.spawn(worker::run(settings.clone(), devlog, ui.as_weak(), rx, demo));
+    rt.spawn(worker::run(settings.clone(), devlog, ui.as_weak(), (tx.clone(), rx), demo));
 
     if !(minimized || (settings.start_minimized && !demo)) || !has_tray {
         ui.show()?;

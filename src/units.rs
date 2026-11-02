@@ -33,6 +33,22 @@ impl Units {
         }
     }
 
+    /// A rate of change (mg/dL per minute) with sign and unit: "-2.4 mg/dL", "-0.13 mmol/L".
+    pub fn fmt_rate(&self, mg_per_min: f32) -> String {
+        format!("{} {}", if mg_per_min >= 0.0 { format!("+{}", self.fmt_rate_number(mg_per_min)) } else { self.fmt_rate_number(mg_per_min) }, self.label())
+    }
+
+    /// The number only, as in the settings field: "2.0" (mg/dL) or "0.11" (mmol/L).
+    pub fn fmt_rate_number(&self, mg_per_min: f32) -> String {
+        if self.mg_dl { format!("{mg_per_min:.1}") } else { format!("{:.2}", mg_per_min / MMOL_FACTOR) }
+    }
+
+    /// A rate typed in the shown unit per minute, back to mg/dL per minute.
+    pub fn parse_rate(&self, s: &str) -> Option<f32> {
+        let v: f32 = s.trim().replace(',', ".").parse().ok().filter(|v: &f32| v.is_finite() && *v > 0.0)?;
+        Some(if self.mg_dl { v } else { v * MMOL_FACTOR })
+    }
+
     pub fn parse(&self, s: &str) -> Option<f32> {
         let v: f32 = s.trim().replace(',', ".").parse().ok()?;
         if !v.is_finite() || v <= 0.0 {

@@ -8,6 +8,9 @@ from here as well.
 ### Added
 - Caching server: scheduled email reports. With `GLLU_SMTP_URL` set, `gllu-server` emails a daily (yesterday), weekly (last Monday to Sunday) and/or monthly (previous month) report with the PDF attached – daily emails also show time in range, average, GMI and the number of lows and highs. Optionally the PDF goes into an AES-256 ZIP and the email carries no glucose values. A restart never sends a report twice, and after downtime the latest missed report is sent once. `gllu-server report --send-now daily|weekly|monthly` tests the setup, `gllu-server report --preview FILE.pdf` writes a report. See the server README for all settings.
 - The server's Docker image includes the time zone database (set `TZ`, e.g. `Europe/Vienna`).
+- Smarter alerts (Settings → Notifications): **predicted low** – the trend of the last 20 minutes reaches the low threshold within 10–30 minutes (on by default); **falling fast** and **rising fast** – trend arrow straight down/up or faster than a rate you choose; **urgent low** below 3.0 mmol/L (54 mg/dL). Prediction and trend alerts are shown once per episode.
+- Quiet hours: between two times (also across midnight) only urgent lows notify; what is suppressed is not shown afterwards either.
+- Snooze: the tray menu mutes alerts for 30 minutes, 1 or 2 hours (or resumes them); on Linux notifications also have a "Snooze 30 min" button. Urgent lows are never snoozed, and the tray tooltip shows until when alerts are snoozed.
 
 ## [1.1.0] – 2026-11-02
 
