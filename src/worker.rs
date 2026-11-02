@@ -563,6 +563,7 @@ impl Worker {
             r.set_detail_band_bottom(m.graph.band_bottom);
             r.set_detail_stats(ModelRc::new(VecModel::from(m.stats)));
             r.set_detail_tir(ModelRc::new(VecModel::from(m.tir)));
+            r.set_detail_totals(m.totals.into());
             r.set_detail_prev(prev);
             r.set_detail_next(next);
             r.set_detail_open(true);
@@ -619,6 +620,8 @@ impl Worker {
             r.set_days(ModelRc::new(VecModel::from(days)));
             r.set_day_band_top(m.day_band_top);
             r.set_day_band_bottom(m.day_band_bottom);
+            r.set_ic_stats(ModelRc::new(VecModel::from(m.ic_stats)));
+            r.set_ic_days(ModelRc::new(VecModel::from(m.ic_days)));
         });
     }
 
@@ -1314,11 +1317,12 @@ impl Worker {
             anyhow::bail!("the time is more than a day in the future");
         }
         let treatment = ui_model::treatment_from_ui(d.treatment, &d.treatment_name, &d.units)?;
+        let carbs = ui_model::carbs_from_ui(&d.carbs)?;
         let st = self.store.as_mut().ok_or_else(|| anyhow::anyhow!("the glucose log is not loaded"))?;
         if d.id.is_empty() {
-            st.add_note(time, &d.text, treatment)?;
+            st.add_note(time, &d.text, treatment, carbs)?;
         } else {
-            st.edit_note(&d.id, time, &d.text, treatment)?;
+            st.edit_note(&d.id, time, &d.text, treatment, carbs)?;
         }
         st.flush()
     }
@@ -1388,7 +1392,7 @@ impl Worker {
                     let msg = match mail::compose(&draft) {
                         mail::Outcome::Opened => "Email created – tell the recipient the password another way",
                         mail::Outcome::Cancelled => "The email was cancelled",
-                        mail::Outcome::Manual => "No mail program took the attachment – attach the ZIP shown in the file manager",
+                        mail::Outcome::Manual => "No mail program took the file – attach the ZIP by hand",
                     };
                     let _ = ui.upgrade_in_event_loop(move |w| w.global::<Toast>().set_message(msg.into()));
                 });
@@ -1527,6 +1531,9 @@ impl Worker {
         match Store::open(&dir, None) {
             Ok(mut st) => {
                 st.insert(&history);
+                for (t, text, treatment, carbs) in crate::demo::notes(now - Duration::days(14), now) {
+                    let _ = st.add_note(t, &text, treatment, carbs);
+                }
                 let _ = st.flush();
                 self.store = Some(st);
             }

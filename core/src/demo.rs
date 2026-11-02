@@ -3,6 +3,7 @@
 use chrono::{DateTime, Duration, Local, Timelike, Utc};
 
 use crate::api::{Connection, Reading};
+use crate::store::{Treatment, TreatmentKind};
 
 /// Smooth, deterministic curve: overnight dip, meal peaks and a slow day-to-day drift.
 fn value_at(t: DateTime<Utc>) -> f32 {
@@ -38,6 +39,37 @@ pub fn readings(from: DateTime<Utc>, to: DateTime<Utc>, step_secs: i64) -> Vec<R
         out.push(Reading { time: t, mg_dl: v.round(), trend });
         t += Duration::seconds(step_secs);
     }
+    out
+}
+
+/// Meals with rapid-acting insulin and an evening long-acting dose on most days of `[from, to]`
+/// (as `(time, text, treatment, carbs)`, ready for [`crate::store::Store::add_note`]).
+pub fn notes(from: DateTime<Utc>, to: DateTime<Utc>) -> Vec<(DateTime<Utc>, String, Option<Treatment>, Option<f32>)> {
+    let mut out = Vec::new();
+    let first = from.with_timezone(&Local).date_naive();
+    let last = to.with_timezone(&Local).date_naive();
+    for (i, date) in first.iter_days().take_while(|d| *d <= last).enumerate() {
+        // every fifth day nothing was logged
+        if i % 5 == 3 {
+            continue;
+        }
+        let at = |h: u32, m: u32| date.and_hms_opt(h, m, 0).and_then(|t| t.and_local_timezone(Local).earliest()).map(|t| t.with_timezone(&Utc));
+        let wave = (i as f32 * 1.3).sin();
+        let rapid = |u: f32| Treatment::new(TreatmentKind::RapidActing, "", Some((u * 2.0).round() / 2.0)).ok();
+        let meals = [
+            (7, 45, "Breakfast", 4.0 + wave, 40.0 + 10.0 * wave),
+            (12, 40, "Lunch", 5.0 - wave, 60.0 - 10.0 * wave),
+            (19, 10, "Dinner", 6.5 + wave.abs() * 2.0, 75.0 + 25.0 * wave.abs()),
+        ];
+        for (h, m, text, units, carbs) in meals {
+            out.extend(at(h, m).map(|t| (t, text.to_string(), rapid(units), Some(carbs.round()))));
+        }
+        out.extend(at(22, 0).map(|t| (t, String::new(), Treatment::new(TreatmentKind::LongActing, "", Some(16.0)).ok(), None)));
+        if i % 4 == 1 {
+            out.extend(at(16, 30).map(|t| (t, "30 min walk".to_string(), None, None)));
+        }
+    }
+    out.retain(|(t, ..)| *t >= from && *t <= to);
     out
 }
 

@@ -8,7 +8,6 @@ mod mail;
 mod migrate;
 mod platform;
 mod secrets;
-mod stats;
 mod tray;
 mod trayicon;
 mod ui_model;
@@ -24,7 +23,7 @@ use anyhow::Result;
 use slint::{ComponentHandle, Model};
 use tokio::sync::{mpsc, oneshot};
 
-use gllu_core::{api, demo, devlog, store};
+use gllu_core::{api, demo, devlog, stats, store};
 use worker::Cmd;
 
 slint::include_modules!();

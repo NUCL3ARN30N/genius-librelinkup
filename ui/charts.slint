@@ -25,8 +25,9 @@ export struct GraphPoint {
     when: string,
 }
 
-// `text` is the one-line summary (treatment and note) shown in tooltips; `note`, `treatment`
-// (0 none, 1 rapid-acting, 2 long-acting, 3 custom), `treatment-name` and `units` fill the dialog.
+// `text` is the one-line summary (treatment, carbs and note) shown in tooltips; `note`,
+// `treatment` (0 none, 1 rapid-acting, 2 long-acting, 3 custom), `treatment-name`, `units` and
+// `carbs` fill the dialog. `kind` picks the marker colour (see Theme.note-color).
 export struct NoteMark {
     x: float,
     id: string,
@@ -37,6 +38,17 @@ export struct NoteMark {
     treatment: int,
     treatment-name: string,
     units: string,
+    carbs: string,
+    kind: int,
+}
+
+// One day of the insulin & carbs chart: bar heights as fractions of the period's maximum, a short
+// date for the axis and the day's totals for hovering.
+export struct DayBar {
+    label: string,
+    insulin: float,
+    carbs: float,
+    text: string,
 }
 
 // Lookups for hovering; implemented in Rust (binary search over the sorted x positions).
@@ -230,19 +242,19 @@ export component GlucoseGraph inherits Rectangle {
         for n[i] in root.notes: Rectangle {
             x: frame.plot-width * n.x - 0.5px;
             width: 1px;
-            background: Theme.primary;
+            background: Theme.note-color(n.kind);
             opacity: i == root.hover-note ? 0.9 : 0.45;
         }
         for n[i] in root.notes: Rectangle {
-            property <length> size: i == root.hover-note ? 12px : 10px;
+            property <length> size: (i == root.hover-note ? 12px : 10px) + (n.kind == 3 ? 2px : 0px);
             x: frame.plot-width * n.x - self.size / 2;
             y: 2px;
             width: self.size;
             height: self.size;
             border-radius: self.size / 2;
-            background: Theme.primary;
-            border-width: 1.5px;
-            border-color: Theme.surface;
+            background: Theme.note-color(n.kind);
+            border-width: n.kind == 3 ? 2.5px : 1.5px;
+            border-color: n.kind == 3 ? Theme.insulin : Theme.surface;
         }
 
         if root.line-path != "" && root.graph-style != 1: Path {
@@ -431,7 +443,7 @@ export component DayChart inherits Rectangle {
             y: parent.height - self.height;
             width: 2px;
             height: 5px;
-            background: Theme.primary;
+            background: Theme.note-color(n.kind);
         }
         if root.hover-point >= 0: Rectangle {
             x: parent.width * root.point.x - 0.5px;
@@ -585,4 +597,64 @@ export component InsightsTable inherits Rectangle {
             }
         }
     }
+}
+
+// Insulin (left bar) and carbs (right bar) per day; pointing at a day shows its totals.
+export component TotalsChart inherits Rectangle {
+    in property <[DayBar]> days;
+    property <length> slot: root.width / max(1, root.days.length);
+    property <int> hover: touch.has-hover && root.days.length > 0 ? max(0, min(root.days.length - 1, floor(touch.mouse-x / root.slot))) : -1;
+    property <length> plot-top: 22px;
+    property <length> plot-height: root.height - root.plot-top - 18px;
+
+    Text {
+        x: 0;
+        y: 0;
+        width: parent.width;
+        text: root.hover >= 0 ? root.days[root.hover].text : "Point at a day for its totals";
+        font-size: 12px;
+        color: root.hover >= 0 ? Theme.on-surface : Theme.on-surface-variant;
+        overflow: elide;
+    }
+    Rectangle {
+        y: root.plot-top + root.plot-height;
+        height: 1px;
+        background: Theme.outline-variant;
+    }
+    for d[i] in root.days: Rectangle {
+        x: root.slot * i;
+        y: root.plot-top;
+        width: root.slot;
+        height: root.plot-height;
+        background: i == root.hover ? Theme.on-surface.with-alpha(0.06) : transparent;
+        property <length> bar: max(1px, min(10px, (self.width - 3px) / 2));
+        Rectangle {
+            x: (parent.width - 2 * parent.bar - 1px) / 2;
+            y: parent.height - self.height;
+            width: parent.bar;
+            height: parent.height * d.insulin;
+            border-radius: min(2px, parent.bar / 2);
+            background: Theme.insulin;
+        }
+        Rectangle {
+            x: (parent.width - 2 * parent.bar - 1px) / 2 + parent.bar + 1px;
+            y: parent.height - self.height;
+            width: parent.bar;
+            height: parent.height * d.carbs;
+            border-radius: min(2px, parent.bar / 2);
+            background: Theme.carbs;
+        }
+    }
+    // a date under every 7th day (and the first)
+    for d[i] in root.days: Text {
+        visible: Math.mod(i, root.days.length > 16 ? 7 : 2) == 0;
+        x: root.slot * (i + 0.5) - 30px;
+        y: root.plot-top + root.plot-height + 3px;
+        width: 60px;
+        horizontal-alignment: center;
+        text: d.label;
+        font-size: 11px;
+        color: Theme.on-surface-variant;
+    }
+    touch := TouchArea { }
 }

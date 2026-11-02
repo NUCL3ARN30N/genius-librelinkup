@@ -6,9 +6,9 @@ use slint::SharedString;
 
 use crate::api::Reading;
 use crate::stats::{self, Light, Report};
-use crate::store::{Note, Treatment, TreatmentKind, fmt_units};
+use crate::store::{Note, Treatment, TreatmentKind, check_carbs, fmt_units};
 use crate::units::{Units, level};
-use crate::{AxisLabel, DayCard, Dot, GraphPoint, Insight, NoteMark, StatItem, TirRow};
+use crate::{AxisLabel, DayBar, DayCard, Dot, GraphPoint, Insight, NoteMark, StatItem, TirRow};
 
 const VW: f32 = 1000.0;
 const VH: f32 = 400.0;
@@ -116,6 +116,7 @@ pub fn note_mark(n: &Note, x: f32, time_format: &str) -> NoteMark {
             tr.units.map(fmt_units).unwrap_or_default(),
         ),
     };
+    let insulin = n.treatment.is_some();
     NoteMark {
         x,
         id: s(n.id.clone()),
@@ -126,7 +127,92 @@ pub fn note_mark(n: &Note, x: f32, time_format: &str) -> NoteMark {
         treatment,
         treatment_name: s(treatment_name),
         units: s(units),
+        carbs: s(n.carbs.map(fmt_units).unwrap_or_default()),
+        kind: match (insulin, n.carbs.is_some()) {
+            (false, false) => 0,
+            (true, false) => 1,
+            (false, true) => 2,
+            (true, true) => 3,
+        },
     }
+}
+
+/// Carbs as typed in the note dialog (grams, decimal point or comma); empty is none.
+pub fn carbs_from_ui(text: &str) -> anyhow::Result<Option<f32>> {
+    let text = text.trim();
+    if text.is_empty() {
+        return Ok(None);
+    }
+    let g = text.replace(',', ".").parse::<f32>().map_err(|_| anyhow::anyhow!("enter the carbs in grams, e.g. 45"))?;
+    check_carbs(Some(g))
+}
+
+/// "Rapid 12 u · Long 18 u · Afrezza 4 u · Carbs 160 g"; empty for a day without entries.
+pub fn totals_text(d: &stats::DayTotals) -> String {
+    let mut parts = Vec::new();
+    if d.rapid_u > 0.0 {
+        parts.push(format!("Rapid {} u", fmt_units(d.rapid_u)));
+    }
+    if d.long_u > 0.0 {
+        parts.push(format!("Long {} u", fmt_units(d.long_u)));
+    }
+    parts.extend(d.custom.iter().map(|(name, u)| format!("{name} {} u", fmt_units(*u))));
+    if d.carbs_g > 0.0 {
+        parts.push(format!("Carbs {} g", fmt_units(d.carbs_g.round())));
+    }
+    parts.join(" · ")
+}
+
+/// Rounds an average for display: one decimal below 10, whole numbers above.
+fn fmt_avg(v: f32) -> String {
+    if v < 10.0 { fmt_units((v * 10.0).round() / 10.0) } else { fmt_units(v.round()) }
+}
+
+/// The report's "Insulin & carbs" card: averages and one bar pair per day. Both are empty when
+/// nothing was recorded in the period.
+pub fn insulin_carbs(days: &[stats::DayTotals]) -> (Vec<StatItem>, Vec<DayBar>) {
+    let sum = stats::summarize_totals(days);
+    if sum.days_with_entries == 0 {
+        return (Vec::new(), Vec::new());
+    }
+    let mut items = Vec::new();
+    if sum.avg_rapid_u > 0.0 {
+        items.push(stat("Rapid-acting insulin", format!("{} u/day", fmt_avg(sum.avg_rapid_u)), ""));
+    }
+    if sum.avg_long_u > 0.0 {
+        items.push(stat("Long-acting insulin", format!("{} u/day", fmt_avg(sum.avg_long_u)), ""));
+    }
+    if sum.avg_rapid_u > 0.0 && sum.avg_long_u > 0.0 {
+        let basal = sum.avg_long_u / sum.avg_insulin_u() * 100.0;
+        items.push(stat("Total insulin", format!("{} u/day", fmt_avg(sum.avg_insulin_u())), &format!("{basal:.0} % long-acting")));
+    }
+    for (name, u) in &sum.avg_custom {
+        items.push(stat(name, format!("{} u/day", fmt_avg(*u)), ""));
+    }
+    if sum.avg_carbs_g > 0.0 {
+        items.push(stat("Carbohydrates", format!("{} g/day", fmt_units(sum.avg_carbs_g.round())), ""));
+    }
+    items.push(stat("Days with entries", format!("{} of {}", sum.days_with_entries, sum.days), ""));
+
+    let max_u = days.iter().map(stats::DayTotals::insulin_u).fold(0.0, f32::max).max(1.0);
+    let max_g = days.iter().map(|d| d.carbs_g).fold(0.0, f32::max).max(1.0);
+    let bars = days
+        .iter()
+        .map(|d| {
+            let totals = totals_text(d);
+            DayBar {
+                label: s(d.date.format("%d %b").to_string()),
+                insulin: d.insulin_u() / max_u,
+                carbs: d.carbs_g / max_g,
+                text: s(format!(
+                    "{} · {}",
+                    d.date.format("%a %d %b"),
+                    if totals.is_empty() { "no entries".to_string() } else { totals }
+                )),
+            }
+        })
+        .collect();
+    (items, bars)
 }
 
 /// The treatment chosen in the note dialog (index as in `Notes.treatments`) with the units as
@@ -295,6 +381,8 @@ pub struct ReportModel {
     pub days: Vec<DayCell>,
     pub day_band_top: f32,
     pub day_band_bottom: f32,
+    pub ic_stats: Vec<StatItem>,
+    pub ic_days: Vec<DayBar>,
 }
 
 fn tir_rows(r: &Report, u: Units, target_low: f32, target_high: f32) -> Vec<TirRow> {
@@ -445,6 +533,8 @@ pub struct DayDetailModel {
     pub graph: GraphModel,
     pub stats: Vec<StatItem>,
     pub tir: Vec<TirRow>,
+    /// insulin and carbs of the day, see [`totals_text`]
+    pub totals: String,
 }
 
 /// One local day `[start, end)` for the details dialog.
@@ -480,6 +570,7 @@ pub fn day_detail(
         graph: graph_between(readings, notes, u, (target_low, target_high), start, end, style, 3, false),
         stats,
         tir: tir_rows(&r, u, target_low, target_high),
+        totals: stats::daily_totals(notes, start, end - Duration::seconds(1)).first().map(totals_text).unwrap_or_default(),
     }
 }
 
@@ -554,6 +645,10 @@ pub fn report_model(r: &Report, notes: &[Note], units: Units, target_low: f32, t
     let day_max = if u.mg_dl { 350.0 } else { 21.0 * crate::store::MMOL_FACTOR };
     let dfy = |v: f32| (1.0 - v.min(day_max) / day_max).clamp(0.0, 1.0);
     let days = calendar(&r.daily, notes, u, &dfy, target_low, target_high);
+    let (ic_stats, ic_days) = match (r.from, r.to) {
+        (Some(from), Some(to)) => insulin_carbs(&stats::daily_totals(notes, from, to)),
+        _ => (Vec::new(), Vec::new()),
+    };
 
     ReportModel {
         title: "Glucose report".into(),
@@ -580,6 +675,8 @@ pub fn report_model(r: &Report, notes: &[Note], units: Units, target_low: f32, t
         days,
         day_band_top: dfy(target_high),
         day_band_bottom: dfy(target_low),
+        ic_stats,
+        ic_days,
     }
 }
 
@@ -639,6 +736,30 @@ mod tests {
         assert_eq!((today.date_naive(), today.hour(), today.minute()), (Local::now().date_naive(), 7, 5));
         assert!(parse_note_time("tomorrow").is_none());
         assert!(parse_note_time("25:00").is_none());
+    }
+
+    #[test]
+    fn insulin_and_carbs_card() {
+        let date = NaiveDate::from_ymd_opt(2026, 10, 26).unwrap();
+        let day = |rapid: f32, long: f32, carbs: f32| stats::DayTotals {
+            date,
+            rapid_u: rapid,
+            long_u: long,
+            custom: Vec::new(),
+            carbs_g: carbs,
+            has_entries: rapid + long + carbs > 0.0,
+        };
+        assert_eq!(insulin_carbs(&[day(0.0, 0.0, 0.0)]).0.len(), 0);
+        let (items, bars) = insulin_carbs(&[day(10.0, 20.0, 150.0), day(0.0, 0.0, 0.0), day(5.0, 10.0, 75.0)]);
+        let labels: Vec<_> = items.iter().map(|i| (i.label.to_string(), i.value.to_string())).collect();
+        assert_eq!(labels[0], ("Rapid-acting insulin".to_string(), "7.5 u/day".to_string()));
+        assert_eq!(labels[2], ("Total insulin".to_string(), "23 u/day".to_string()));
+        assert_eq!(labels.last().unwrap().1, "2 of 3");
+        assert_eq!((bars[0].insulin, bars[0].carbs, bars[2].carbs), (1.0, 1.0, 0.5));
+        assert!(bars[1].text.ends_with("no entries"));
+        assert_eq!(totals_text(&day(12.0, 18.0, 160.4)), "Rapid 12 u · Long 18 u · Carbs 160 g");
+        assert_eq!(carbs_from_ui(" 45,5 ").unwrap(), Some(45.5));
+        assert!(carbs_from_ui("lots").is_err() && carbs_from_ui("-3").is_err());
     }
 
     #[test]

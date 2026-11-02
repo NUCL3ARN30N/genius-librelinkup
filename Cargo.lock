@@ -1919,7 +1919,7 @@ dependencies = [
 
 [[package]]
 name = "genius-librelinkup"
-version = "1.0.0"
+version = "1.1.0"
 dependencies = [
  "anyhow",
  "chrono",
@@ -2018,7 +2018,7 @@ dependencies = [
 
 [[package]]
 name = "gllu-core"
-version = "1.0.0"
+version = "1.1.0"
 dependencies = [
  "anyhow",
  "argon2",
@@ -2041,7 +2041,7 @@ dependencies = [
 
 [[package]]
 name = "gllu-server"
-version = "1.0.0"
+version = "1.1.0"
 dependencies = [
  "anyhow",
  "axum",

@@ -7,7 +7,11 @@ from here as well.
 
 ### Added
 - Export on the Reports page: the new **Export…** button saves the readings and notes of the selected report period (or of all data) as a CSV file, or packs them into a ZIP file encrypted with AES-256 and attaches it to a new email in your mail program (Outlook, Thunderbird and other programs that support Simple MAPI on Windows, the desktop's mail program on Linux). Tell the recipient the password another way; the file opens with 7-Zip, WinRAR or Keka.
-- Treatments in notes: a note can record rapid-acting or long-acting insulin, or a treatment you name yourself, with the units given (a decimal comma works too). Treatments are shown in the graph tooltips, included in the CSV export and import, and read from LibreView exports ("Rapid-Acting Insulin" and "Long-Acting Insulin" columns).
+- Insulin and carbs in notes: a note can record rapid-acting or long-acting insulin, or a treatment you name yourself, with the units given, and the carbohydrates eaten (a decimal comma works too). They are shown in the graph tooltips, included in the CSV export and import, and read from LibreView exports ("Rapid-Acting Insulin", "Long-Acting Insulin" and "Carbohydrates" columns).
+- Note markers are coloured by what they record: blue for insulin, orange for carbs, grey for other notes – in the graphs and in the daily profiles calendar.
+- Reports: a new "Insulin & carbs" card with the average daily rapid-acting, long-acting and total insulin, the carbs per day and a bar chart of every day of the period.
+- Day details list the day's notes with its insulin and carbs totals; click a note to edit it.
+- The demo mode (`--demo`) includes meals, insulin and notes.
 
 ### Changed
 - Exporting readings moved from Settings → Import & export to the Reports page.

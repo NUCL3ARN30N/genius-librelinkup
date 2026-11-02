@@ -142,6 +142,15 @@ impl Treatment {
     }
 }
 
+/// Validates carbohydrates: 0 < g ≤ 1000, rounded to one decimal.
+pub fn check_carbs(grams: Option<f32>) -> Result<Option<f32>> {
+    match grams {
+        Some(g) if !g.is_finite() || g <= 0.0 || g > 1000.0 => bail!("carbs must be between 0 and 1000 g"),
+        Some(g) => Ok(Some((g * 10.0).round() / 10.0)),
+        None => Ok(None),
+    }
+}
+
 /// Units without trailing zeros: 4.5, 12, 0.25.
 pub fn fmt_units(u: f32) -> String {
     let s = format!("{u:.2}");
@@ -162,6 +171,9 @@ pub struct Note {
     pub deleted: bool,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub treatment: Option<Treatment>,
+    /// carbohydrates in grams
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub carbs: Option<f32>,
     /// fields written by newer versions, kept so saving here does not drop them
     #[serde(flatten)]
     pub extra: serde_json::Map<String, serde_json::Value>,
@@ -172,9 +184,10 @@ impl Note {
         DateTime::from_timestamp(self.time, 0).unwrap_or_default()
     }
 
-    /// Treatment and text in one line, e.g. "Rapid-acting insulin: 4.5 u · Breakfast".
+    /// Treatment, carbs and text in one line, e.g. "Rapid-acting insulin: 4.5 u · 45 g carbs · Breakfast".
     pub fn summary(&self) -> String {
-        let parts = [self.treatment.as_ref().map(Treatment::describe), Some(self.text.clone())];
+        let carbs = self.carbs.map(|g| format!("{} g carbs", fmt_units(g)));
+        let parts = [self.treatment.as_ref().map(Treatment::describe), carbs, Some(self.text.clone())];
         parts.into_iter().flatten().filter(|p| !p.is_empty()).collect::<Vec<_>>().join(" · ")
     }
 }
@@ -202,6 +215,7 @@ pub struct CsvNote {
     pub time: DateTime<Utc>,
     pub text: String,
     pub treatment: Option<Treatment>,
+    pub carbs: Option<f32>,
 }
 
 /// What a CSV file contained.
@@ -655,10 +669,11 @@ impl Store {
     }
 
     /// Adds a note and returns its id. Call [`Store::flush`] to write it.
-    pub fn add_note(&mut self, time: DateTime<Utc>, text: &str, treatment: Option<Treatment>) -> Result<String> {
+    pub fn add_note(&mut self, time: DateTime<Utc>, text: &str, treatment: Option<Treatment>, carbs: Option<f32>) -> Result<String> {
         self.notes_writable()?;
         let text = clean_note_text(text);
-        if text.is_empty() && treatment.is_none() {
+        let carbs = check_carbs(carbs)?;
+        if text.is_empty() && treatment.is_none() && carbs.is_none() {
             bail!("the note is empty");
         }
         let id = hex::encode(random_bytes::<8>());
@@ -669,6 +684,7 @@ impl Store {
             updated: now_millis(),
             deleted: false,
             treatment,
+            carbs,
             extra: Default::default(),
         };
         self.notes.insert(id.clone(), note);
@@ -676,17 +692,26 @@ impl Store {
         Ok(id)
     }
 
-    /// Changes the time, text and treatment of an existing note.
-    pub fn edit_note(&mut self, id: &str, time: DateTime<Utc>, text: &str, treatment: Option<Treatment>) -> Result<()> {
+    /// Changes the time, text, treatment and carbs of an existing note.
+    pub fn edit_note(
+        &mut self,
+        id: &str,
+        time: DateTime<Utc>,
+        text: &str,
+        treatment: Option<Treatment>,
+        carbs: Option<f32>,
+    ) -> Result<()> {
         self.notes_writable()?;
         let text = clean_note_text(text);
-        if text.is_empty() && treatment.is_none() {
+        let carbs = check_carbs(carbs)?;
+        if text.is_empty() && treatment.is_none() && carbs.is_none() {
             bail!("the note is empty");
         }
         let note = self.notes.get_mut(id).filter(|n| !n.deleted).ok_or_else(|| anyhow!("note not found"))?;
         note.time = time.timestamp();
         note.text = text;
         note.treatment = treatment;
+        note.carbs = carbs;
         note.updated = now_millis().max(note.updated + 1);
         self.notes_dirty = true;
         Ok(())
@@ -698,6 +723,7 @@ impl Store {
         note.deleted = true;
         note.text.clear();
         note.treatment = None;
+        note.carbs = None;
         // the tombstone keeps no content, not even fields of newer versions
         note.extra.clear();
         note.updated = now_millis().max(note.updated + 1);
@@ -742,9 +768,9 @@ impl Store {
         for n in &data.notes {
             let clean = clean_note_text(&n.text);
             let exists = self.notes.values().any(|o| {
-                !o.deleted && o.time == n.time.timestamp() && o.text == clean && o.treatment == n.treatment
+                !o.deleted && o.time == n.time.timestamp() && o.text == clean && o.treatment == n.treatment && o.carbs == n.carbs
             });
-            if !exists && self.add_note(n.time, &clean, n.treatment.clone()).is_ok() {
+            if !exists && self.add_note(n.time, &clean, n.treatment.clone(), n.carbs).is_ok() {
                 notes += 1;
             }
         }
@@ -764,7 +790,7 @@ fn csv_field(s: &str) -> String {
     if s.contains([',', ';', '"', '\n', '\r']) { format!("\"{}\"", s.replace('"', "\"\"")) } else { s.to_string() }
 }
 
-pub const CSV_HEADER: &str = "timestamp_utc,local_time,glucose_mg_dl,glucose_mmol_l,trend,note,treatment,units";
+pub const CSV_HEADER: &str = "timestamp_utc,local_time,glucose_mg_dl,glucose_mmol_l,trend,note,treatment,units,carbs_g";
 
 fn write_csv(f: &mut impl Write, readings: &[Reading], notes: &[Note]) -> Result<()> {
     writeln!(f, "{CSV_HEADER}")?;
@@ -777,7 +803,8 @@ fn write_csv(f: &mut impl Write, readings: &[Reading], notes: &[Note]) -> Result
             Some(t) => (csv_field(t.label()), t.units.map(fmt_units).unwrap_or_default()),
             None => (String::new(), String::new()),
         };
-        writeln!(f, "{utc},{local},,,,{},{treatment},{units}", csv_field(&n.text))
+        let carbs = n.carbs.map(fmt_units).unwrap_or_default();
+        writeln!(f, "{utc},{local},,,,{},{treatment},{units},{carbs}", csv_field(&n.text))
     };
     let mut notes = notes.iter().peekable();
     for r in readings {
@@ -785,7 +812,7 @@ fn write_csv(f: &mut impl Write, readings: &[Reading], notes: &[Note]) -> Result
             note_row(f, n)?;
         }
         let (utc, local) = stamp(r.time);
-        writeln!(f, "{utc},{local},{:.0},{:.1},{},,,", r.mg_dl, r.mg_dl / MMOL_FACTOR, r.trend)?;
+        writeln!(f, "{utc},{local},{:.0},{:.1},{},,,,", r.mg_dl, r.mg_dl / MMOL_FACTOR, r.trend)?;
     }
     for n in notes {
         note_row(f, n)?;
@@ -861,7 +888,7 @@ fn parse_local_time(s: &str) -> Option<DateTime<Utc>> {
 pub fn parse_csv(text: &str) -> Result<CsvData> {
     let mut lines = text.lines();
     let mut out = CsvData::default();
-    // Our own export (the note column was added in 0.2.0, treatment and units in 1.1.0).
+    // Our own export (the note column was added in 0.2.0, treatment, units and carbs in 1.1.0).
     let first = lines.next().unwrap_or_default().trim_start_matches('\u{feff}');
     if first.starts_with("timestamp_utc") {
         for line in lines {
@@ -873,8 +900,9 @@ pub fn parse_csv(text: &str) -> Result<CsvData> {
             let time = time.with_timezone(&Utc);
             let col = |i: usize| cols.get(i).map(String::as_str).unwrap_or_default();
             let treatment = (!col(6).is_empty()).then(|| Treatment::from_label(col(6), parse_number(col(7))).ok()).flatten();
-            if !col(5).is_empty() || treatment.is_some() {
-                out.notes.push(CsvNote { time, text: col(5).to_string(), treatment });
+            let carbs = check_carbs(parse_number(col(8))).ok().flatten();
+            if !col(5).is_empty() || treatment.is_some() || carbs.is_some() {
+                out.notes.push(CsvNote { time, text: col(5).to_string(), treatment, carbs });
             }
             let Ok(v) = cols[2].parse::<f32>() else { continue };
             let trend = cols.get(4).and_then(|t| t.parse().ok()).unwrap_or(0);
@@ -908,6 +936,7 @@ pub fn parse_csv(text: &str) -> Result<CsvData> {
             })
         };
         let insulin_cols = [(TreatmentKind::RapidActing, insulin("rapid-acting insulin")), (TreatmentKind::LongActing, insulin("long-acting insulin"))];
+        let carbs_i = insulin("carbohydrates");
         let mmol = h[hist_i].to_lowercase().contains("mmol");
         let Some(time) = cols.get(ts_i).and_then(|s| parse_local_time(s)) else { continue };
         let mut text = notes_i.and_then(|i| cols.get(i)).cloned().unwrap_or_default();
@@ -916,12 +945,16 @@ pub fn parse_csv(text: &str) -> Result<CsvData> {
             let Some(units) = i.and_then(|i| cols.get(i)).and_then(|v| parse_number(v)) else { continue };
             if let Ok(t) = Treatment::new(kind, "", Some(units)) {
                 // the row's note text goes with its first treatment
-                out.notes.push(CsvNote { time, text: std::mem::take(&mut text), treatment: Some(t) });
+                out.notes.push(CsvNote { time, text: std::mem::take(&mut text), treatment: Some(t), carbs: None });
                 row_notes += 1;
             }
         }
-        if row_notes == 0 && !text.is_empty() {
-            out.notes.push(CsvNote { time, text, treatment: None });
+        let carbs = carbs_i.and_then(|i| cols.get(i)).and_then(|v| check_carbs(parse_number(v)).ok().flatten());
+        if row_notes == 0 && (!text.is_empty() || carbs.is_some()) {
+            out.notes.push(CsvNote { time, text, treatment: None, carbs });
+        } else if let Some(first) = carbs.and(out.notes.len().checked_sub(row_notes)) {
+            // carbs in the same row as insulin go with the first treatment, like the text
+            out.notes[first].carbs = carbs;
         }
         let value = [Some(hist_i), scan_i]
             .into_iter()
@@ -1069,23 +1102,23 @@ mod tests {
         {
             let mut a = Store::open(&dir, Some("pw")).unwrap();
             let mut b = Store::open(&dir, Some("pw")).unwrap();
-            id_a = a.add_note(t, "  Pizza \n large ", None).unwrap();
+            id_a = a.add_note(t, "  Pizza \n large ", None, None).unwrap();
             a.flush().unwrap();
             // b never saw a's note but must not drop it when writing its own
-            id_b = b.add_note(t + chrono::Duration::minutes(5), "Walk", None).unwrap();
+            id_b = b.add_note(t + chrono::Duration::minutes(5), "Walk", None, None).unwrap();
             b.flush().unwrap();
         }
         let mut s = Store::open(&dir, Some("pw")).unwrap();
         assert_eq!(s.note_count(), 2);
         assert_eq!(s.note(&id_a).unwrap().text, "Pizza large");
-        assert!(s.add_note(t, "   ", None).is_err());
+        assert!(s.add_note(t, "   ", None, None).is_err());
 
         // a device holding an old copy must not bring a deleted note back
         let mut stale = Store::open(&dir, Some("pw")).unwrap();
         s.delete_note(&id_a).unwrap();
-        s.edit_note(&id_b, t, "Long walk", None).unwrap();
+        s.edit_note(&id_b, t, "Long walk", None, None).unwrap();
         s.flush().unwrap();
-        stale.add_note(t, "Other", None).unwrap();
+        stale.add_note(t, "Other", None, None).unwrap();
         stale.flush().unwrap();
         let s = Store::open(&dir, Some("pw")).unwrap();
         assert!(s.note(&id_a).is_none());
@@ -1100,7 +1133,7 @@ mod tests {
         let mut s = Store::open(&dir, None).unwrap();
         std::fs::write(dir.join(NOTES_FILE), b"garbage").unwrap();
         s.reload().unwrap();
-        assert!(s.add_note(Utc::now(), "x", None).is_err());
+        assert!(s.add_note(Utc::now(), "x", None, None).is_err());
         assert_eq!(std::fs::read(dir.join(NOTES_FILE)).unwrap(), b"garbage");
         let _ = std::fs::remove_dir_all(&dir);
     }
@@ -1110,8 +1143,8 @@ mod tests {
         let dir = tmpdir("csv");
         let mut s = Store::open(&dir, None).unwrap();
         s.insert(&[reading(1_767_225_600, 100.0), reading(1_767_225_900, 120.0)]);
-        s.add_note(DateTime::from_timestamp(1_767_225_700, 0).unwrap(), "Juice, \"small\"", None).unwrap();
-        s.add_note(DateTime::from_timestamp(1_767_226_000, 0).unwrap(), "Bed", None).unwrap();
+        s.add_note(DateTime::from_timestamp(1_767_225_700, 0).unwrap(), "Juice, \"small\"", None, None).unwrap();
+        s.add_note(DateTime::from_timestamp(1_767_226_000, 0).unwrap(), "Bed", None, None).unwrap();
         s.flush().unwrap();
         let file = dir.join("export.csv");
         assert_eq!(s.export_csv(&file, None).unwrap(), (2, 2));
@@ -1152,11 +1185,20 @@ mod tests {
             updated: 0,
             deleted: false,
             treatment: Some(t),
+            carbs: None,
             extra: Default::default(),
         };
         assert_eq!(n.summary(), "Rapid-acting insulin: 4.5 u · Breakfast");
         n.text.clear();
         assert_eq!(n.summary(), "Rapid-acting insulin: 4.5 u");
+        n.carbs = Some(45.0);
+        n.text = "Breakfast".into();
+        assert_eq!(n.summary(), "Rapid-acting insulin: 4.5 u · 45 g carbs · Breakfast");
+        n.treatment = None;
+        n.text.clear();
+        assert_eq!(n.summary(), "45 g carbs");
+        assert_eq!(check_carbs(Some(12.34)).unwrap(), Some(12.3));
+        assert!(check_carbs(Some(0.0)).is_err() && check_carbs(Some(1001.0)).is_err());
     }
 
     #[test]
@@ -1164,9 +1206,9 @@ mod tests {
         let dir = tmpdir("treatment-only");
         let mut s = Store::open(&dir, None).unwrap();
         let t = Some(Treatment::new(TreatmentKind::LongActing, "", Some(18.0)).unwrap());
-        let id = s.add_note(Utc::now(), " ", t.clone()).unwrap();
+        let id = s.add_note(Utc::now(), " ", t.clone(), None).unwrap();
         assert_eq!(s.note(&id).unwrap().treatment, t);
-        assert!(s.edit_note(&id, Utc::now(), "", None).is_err());
+        assert!(s.edit_note(&id, Utc::now(), "", None, None).is_err());
         s.delete_note(&id).unwrap();
         assert!(s.notes.get(&id).is_some_and(|n| n.treatment.is_none() && n.deleted));
         let _ = std::fs::remove_dir_all(&dir);
@@ -1181,7 +1223,9 @@ mod tests {
             FreeStyle LibreLink,ABC,27-10-2026 08:15,0,110,,,,,,,,\n\
             FreeStyle LibreLink,ABC,27-10-2026 08:30,4,,,,\"4,5\",,,,,Breakfast\n\
             FreeStyle LibreLink,ABC,27-10-2026 22:00,4,,,,2,,,,18,\n\
-            FreeStyle LibreLink,ABC,27-10-2026 23:00,4,,,X,,,,,,\n";
+            FreeStyle LibreLink,ABC,27-10-2026 23:00,4,,,X,,,,,,\n\
+            FreeStyle LibreLink,ABC,27-10-2026 12:00,5,,,,,Pasta,\"60,5\",,,Lunch\n\
+            FreeStyle LibreLink,ABC,27-10-2026 12:05,4,,,,3,,40,,,\n";
         let d = parse_csv(csv).unwrap();
         assert_eq!(d.readings.len(), 1);
         let got: Vec<String> = d.notes.iter().map(|n| Note {
@@ -1191,9 +1235,19 @@ mod tests {
             updated: 0,
             deleted: false,
             treatment: n.treatment.clone(),
+            carbs: n.carbs,
             extra: Default::default(),
         }.summary()).collect();
-        assert_eq!(got, ["Rapid-acting insulin: 4.5 u · Breakfast", "Rapid-acting insulin: 2 u", "Long-acting insulin: 18 u"]);
+        assert_eq!(
+            got,
+            [
+                "Rapid-acting insulin: 4.5 u · Breakfast",
+                "Rapid-acting insulin: 2 u",
+                "Long-acting insulin: 18 u",
+                "60.5 g carbs · Lunch",
+                "Rapid-acting insulin: 3 u · 40 g carbs",
+            ]
+        );
     }
 
     #[test]
@@ -1202,8 +1256,8 @@ mod tests {
         let mut s = Store::open(&dir, None).unwrap();
         s.insert(&[reading(1_767_225_600, 100.0)]);
         let custom = Treatment::new(TreatmentKind::Custom, "Inhaled, \"fast\"", Some(8.25)).unwrap();
-        s.add_note(DateTime::from_timestamp(1_767_225_700, 0).unwrap(), "", Some(custom.clone())).unwrap();
-        s.add_note(DateTime::from_timestamp(1_767_225_500, 0).unwrap(), "Walk", None).unwrap();
+        s.add_note(DateTime::from_timestamp(1_767_225_700, 0).unwrap(), "", Some(custom.clone()), Some(30.0)).unwrap();
+        s.add_note(DateTime::from_timestamp(1_767_225_500, 0).unwrap(), "Walk", None, None).unwrap();
         let file = dir.join("export.csv");
         s.export_csv(&file, None).unwrap();
         let text = std::fs::read_to_string(&file).unwrap();
@@ -1211,6 +1265,7 @@ mod tests {
         let data = parse_csv(&text).unwrap();
         assert_eq!(data.notes.len(), 2);
         assert_eq!(data.notes[1].treatment.as_ref(), Some(&custom));
+        assert_eq!((data.notes[0].carbs, data.notes[1].carbs), (None, Some(30.0)));
         // files of 0.2.0 without the treatment columns still parse
         let old = "timestamp_utc,local_time,glucose_mg_dl,glucose_mmol_l,trend,note\n\
             2026-01-01T00:00:00Z,x,100,5.5,3,\n2026-01-01T00:01:00Z,x,,,,Bed\n";
@@ -1231,7 +1286,7 @@ mod tests {
             std::fs::write(s.notes_path(), out).unwrap();
         }
         let mut s = Store::open(&dir, None).unwrap();
-        s.edit_note("n1", DateTime::from_timestamp(1_767_225_600, 0).unwrap(), "Long run", None).unwrap();
+        s.edit_note("n1", DateTime::from_timestamp(1_767_225_600, 0).unwrap(), "Long run", None, None).unwrap();
         s.flush().unwrap();
         let s = Store::open(&dir, None).unwrap();
         let n = s.note("n1").unwrap();

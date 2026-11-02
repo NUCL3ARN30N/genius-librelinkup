@@ -17,7 +17,8 @@ pub struct Draft {
 pub enum Outcome {
     /// a message window with the attachment is open
     Opened,
-    /// the user closed the mail program's dialog
+    /// the user closed the mail program's dialog (Simple MAPI only)
+    #[cfg_attr(not(windows), allow(dead_code))]
     Cancelled,
     /// only a plain draft could be opened; the attachment has to be added by hand
     Manual,

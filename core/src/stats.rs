@@ -2,8 +2,11 @@
 //! (Battelino et al., Diabetes Care 2019) as used by LibreView's AGP report.
 
 use chrono::{DateTime, Duration, Local, NaiveDate, Timelike, Utc};
+#[cfg(test)]
+use chrono::TimeZone;
 
 use crate::api::Reading;
+use crate::store::{Note, TreatmentKind};
 
 /// Consensus thresholds in mg/dL.
 pub const VERY_LOW: f32 = 54.0;
@@ -281,6 +284,93 @@ fn daily_profiles(readings: &[Reading], from: DateTime<Utc>, to: DateTime<Utc>) 
     days
 }
 
+/// Insulin and carbohydrates recorded in the notes of one local day.
+#[derive(Debug, Clone, Default, PartialEq)]
+pub struct DayTotals {
+    pub date: NaiveDate,
+    pub rapid_u: f32,
+    pub long_u: f32,
+    /// custom treatments with units, summed per name (in order of appearance)
+    pub custom: Vec<(String, f32)>,
+    pub carbs_g: f32,
+    /// the day has at least one treatment or carbs entry
+    pub has_entries: bool,
+}
+
+impl DayTotals {
+    pub fn insulin_u(&self) -> f32 {
+        self.rapid_u + self.long_u
+    }
+}
+
+/// One entry per local day in `[from, to]` (days without entries included, for charts).
+pub fn daily_totals(notes: &[Note], from: DateTime<Utc>, to: DateTime<Utc>) -> Vec<DayTotals> {
+    let first = from.with_timezone(&Local).date_naive();
+    let last = to.with_timezone(&Local).date_naive();
+    let mut days: Vec<DayTotals> = first.iter_days().take_while(|d| *d <= last).map(|date| DayTotals { date, ..Default::default() }).collect();
+    for n in notes.iter().filter(|n| !n.deleted && n.at() >= from && n.at() <= to) {
+        let idx = (n.at().with_timezone(&Local).date_naive() - first).num_days();
+        let Some(day) = usize::try_from(idx).ok().and_then(|i| days.get_mut(i)) else { continue };
+        if let Some(t) = &n.treatment {
+            day.has_entries = true;
+            let u = t.units.unwrap_or(0.0);
+            match t.kind {
+                TreatmentKind::RapidActing => day.rapid_u += u,
+                TreatmentKind::LongActing => day.long_u += u,
+                TreatmentKind::Custom if u > 0.0 => match day.custom.iter_mut().find(|(name, _)| name.eq_ignore_ascii_case(&t.name)) {
+                    Some((_, sum)) => *sum += u,
+                    None => day.custom.push((t.name.clone(), u)),
+                },
+                TreatmentKind::Custom => {}
+            }
+        }
+        if let Some(g) = n.carbs {
+            day.has_entries = true;
+            day.carbs_g += g;
+        }
+    }
+    days
+}
+
+/// Averages over the days that have entries (days without any are not counted as zero: most
+/// people do not log every day).
+#[derive(Debug, Clone, Default, PartialEq)]
+pub struct TotalsSummary {
+    pub days: usize,
+    pub days_with_entries: usize,
+    pub avg_rapid_u: f32,
+    pub avg_long_u: f32,
+    pub avg_carbs_g: f32,
+    /// average per day with entries, per custom treatment name
+    pub avg_custom: Vec<(String, f32)>,
+}
+
+impl TotalsSummary {
+    pub fn avg_insulin_u(&self) -> f32 {
+        self.avg_rapid_u + self.avg_long_u
+    }
+}
+
+pub fn summarize_totals(days: &[DayTotals]) -> TotalsSummary {
+    let with: Vec<&DayTotals> = days.iter().filter(|d| d.has_entries).collect();
+    let n = with.len().max(1) as f32;
+    let mut custom: Vec<(String, f32)> = Vec::new();
+    for (name, u) in with.iter().flat_map(|d| d.custom.iter()) {
+        match custom.iter_mut().find(|(c, _)| c.eq_ignore_ascii_case(name)) {
+            Some((_, sum)) => *sum += u,
+            None => custom.push((name.clone(), *u)),
+        }
+    }
+    TotalsSummary {
+        days: days.len(),
+        days_with_entries: with.len(),
+        avg_rapid_u: with.iter().map(|d| d.rapid_u).sum::<f32>() / n,
+        avg_long_u: with.iter().map(|d| d.long_u).sum::<f32>() / n,
+        avg_carbs_g: with.iter().map(|d| d.carbs_g).sum::<f32>() / n,
+        avg_custom: custom.into_iter().map(|(name, sum)| (name, sum / n)).collect(),
+    }
+}
+
 /// Formats a duration share of a day, e.g. 4.0 % of 24 h → "58 min".
 pub fn share_of_day(pct: f32) -> String {
     let minutes = (pct / 100.0 * 1440.0).round() as u32;
@@ -308,6 +398,41 @@ mod tests {
         assert!((r.tir.high - 50.0).abs() < 0.5);
         assert!(r.sensor_active_pct > 99.0);
         assert_eq!(r.agp.len(), 96);
+    }
+
+    #[test]
+    fn daily_totals_and_averages() {
+        use crate::store::Treatment;
+        let day0 = Local.with_ymd_and_hms(2026, 10, 26, 0, 0, 0).unwrap().with_timezone(&Utc);
+        let note = |h: i64, kind: Option<(TreatmentKind, &str, f32)>, carbs: Option<f32>| Note {
+            id: h.to_string(),
+            time: (day0 + Duration::hours(h)).timestamp(),
+            text: String::new(),
+            updated: 0,
+            deleted: false,
+            treatment: kind.map(|(k, name, u)| Treatment::new(k, name, Some(u)).unwrap()),
+            carbs,
+            extra: Default::default(),
+        };
+        let notes = vec![
+            note(8, Some((TreatmentKind::RapidActing, "", 4.5)), Some(45.0)),
+            note(13, Some((TreatmentKind::RapidActing, "", 6.0)), None),
+            note(22, Some((TreatmentKind::LongActing, "", 18.0)), None),
+            note(23, Some((TreatmentKind::Custom, "Afrezza", 4.0)), None),
+            // day 2 has nothing; day 3 only carbs
+            note(48 + 12, None, Some(80.0)),
+        ];
+        let days = daily_totals(&notes, day0, day0 + Duration::days(3) - Duration::seconds(1));
+        assert_eq!(days.len(), 3);
+        assert_eq!((days[0].rapid_u, days[0].long_u, days[0].carbs_g), (10.5, 18.0, 45.0));
+        assert_eq!(days[0].custom, vec![("Afrezza".to_string(), 4.0)]);
+        assert!(!days[1].has_entries && days[2].has_entries);
+        let s = summarize_totals(&days);
+        assert_eq!((s.days, s.days_with_entries), (3, 2));
+        assert_eq!((s.avg_rapid_u, s.avg_long_u, s.avg_carbs_g), (5.25, 9.0, 62.5));
+        assert_eq!(s.avg_insulin_u(), 14.25);
+        assert_eq!(s.avg_custom, vec![("Afrezza".to_string(), 2.0)]);
+        assert_eq!(summarize_totals(&[]).avg_rapid_u, 0.0);
     }
 
     #[test]

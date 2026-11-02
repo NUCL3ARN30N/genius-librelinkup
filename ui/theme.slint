@@ -45,6 +45,18 @@ export global Theme {
     out property <color> agp-inner: primary.with-alpha(0.55);
     out property <color> agp-median: dark ? primary.mix(#ffffff, 0.6) : primary.mix(#000000, 0.6);
 
+    // note markers and the insulin & carbs chart
+    out property <color> insulin: dark ? #64b5f6 : #1e88e5;
+    out property <color> carbs: dark ? #ffb74d : #ef8f00;
+    out property <color> note-other: dark ? #b0b4bc : #6b6f78;
+
+    // note kind: 0 other, 1 insulin, 2 carbs, 3 insulin and carbs (fill = carbs, ring = insulin)
+    public pure function note-color(kind: int) -> color {
+        if kind == 1 { return insulin; }
+        if kind == 2 || kind == 3 { return carbs; }
+        return note-other;
+    }
+
     // level: 0 unknown, 1 very low, 2 low, 3 target, 4 high, 5 very high
     public pure function level-color(level: int) -> color {
         if level == 1 { return very-low; }

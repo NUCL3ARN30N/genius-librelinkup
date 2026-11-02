@@ -1,9 +1,9 @@
 import { ComboBox, ScrollView, ListView, TextEdit, Palette, Spinner } from "std-widgets.slint";
 import { Theme, Icons, Toast } from "theme.slint";
 import { AppLogo, Card, Title, Caption, NavItem, IconButton, Icon, StatTile, StatItem, Chip, Banner, MButton, Segmented, MSwitch, TextField, Stepper, Swatch, Snackbar } from "components.slint";
-import { GlucoseGraph, AgpChart, DayChart, TirChart, InsightsTable, AxisLabel, Dot, TirRow, Insight, DayCard, GraphPoint, NoteMark, ChartBridge } from "charts.slint";
+import { GlucoseGraph, AgpChart, DayChart, TirChart, InsightsTable, TotalsChart, AxisLabel, Dot, TirRow, Insight, DayCard, DayBar, GraphPoint, NoteMark, ChartBridge } from "charts.slint";
 
-export { AxisLabel, Dot, TirRow, Insight, DayCard, StatItem, Theme, Toast, GraphPoint, NoteMark, ChartBridge }
+export { AxisLabel, Dot, TirRow, Insight, DayCard, DayBar, StatItem, Theme, Toast, GraphPoint, NoteMark, ChartBridge }
 
 export struct LogItem {
     time: string,
@@ -104,6 +104,9 @@ export global Reports {
     in property <[DayCard]> days;
     in property <float> day-band-top;
     in property <float> day-band-bottom;
+    // insulin & carbs from the notes; `ic-days` is empty when nothing was recorded
+    in property <[StatItem]> ic-stats;
+    in property <[DayBar]> ic-days;
     callback period-changed(int);
 
     // details of one day, opened from the calendar
@@ -121,13 +124,15 @@ export global Reports {
     in property <float> detail-band-bottom;
     in property <[StatItem]> detail-stats;
     in property <[TirRow]> detail-tir;
+    // "Rapid 12 u · Long 18 u · Carbs 160 g", empty without entries
+    in property <string> detail-totals;
     // keys of the neighbouring days with data, -1 if there is none
     in property <int> detail-prev: -1;
     in property <int> detail-next: -1;
     callback open-day(int);
 }
 
-// What the note dialog sends to Rust; `units` is the text as typed ("4,5" or "4.5").
+// What the note dialog sends to Rust; `units` and `carbs` are the text as typed ("4,5" or "4.5").
 export struct NoteDraft {
     id: string,
     when: string,
@@ -135,6 +140,7 @@ export struct NoteDraft {
     treatment: int,
     treatment-name: string,
     units: string,
+    carbs: string,
 }
 
 // Notes at a point in time, kept in the glucose log folder. The dialog edits the in-out fields;
@@ -151,15 +157,17 @@ export global Notes {
     in-out property <int> treatment;
     in-out property <string> treatment-name;
     in-out property <string> units;
+    // grams
+    in-out property <string> carbs;
     in-out property <string> error;
     in property <[string]> treatments: ["None", "Rapid-acting insulin", "Long-acting insulin", "Custom…"];
     callback now() -> string;
     callback save(NoteDraft);
     callback delete(string);
 
-    out property <bool> can-save: Notes.text != "" || Notes.treatment != 0;
+    out property <bool> can-save: Notes.text != "" || Notes.treatment != 0 || Notes.carbs != "";
     public function draft() -> NoteDraft {
-        return { id: Notes.id, when: Notes.when, text: Notes.text, treatment: Notes.treatment, treatment-name: Notes.treatment-name, units: Notes.units };
+        return { id: Notes.id, when: Notes.when, text: Notes.text, treatment: Notes.treatment, treatment-name: Notes.treatment-name, units: Notes.units, carbs: Notes.carbs };
     }
 
     // empty `when`: now
@@ -170,6 +178,7 @@ export global Notes {
         Notes.treatment = 0;
         Notes.treatment-name = "";
         Notes.units = "";
+        Notes.carbs = "";
         Notes.error = "";
         Notes.open = true;
     }
@@ -180,6 +189,7 @@ export global Notes {
         Notes.treatment = n.treatment;
         Notes.treatment-name = n.treatment-name;
         Notes.units = n.units;
+        Notes.carbs = n.carbs;
         Notes.error = "";
         Notes.open = true;
     }
@@ -610,6 +620,71 @@ component ReportsPage inherits Rectangle {
                     Title { text: "Glucose pattern insights"; }
                     InsightsTable { rows: Reports.insights; }
                     Caption { text: "Traffic lights are a simplified, informational approximation of LibreView's pattern insights – not medical advice."; }
+                }
+            }
+
+            if Reports.available: Card {
+                VerticalLayout {
+                    padding: 20px;
+                    spacing: 12px;
+                    Title { text: "Insulin & carbs"; }
+                    if Reports.ic-days.length == 0: Caption {
+                        text: "No insulin or carbs were recorded in this period. Add them to a note (Add note on the Glucose page, or click the graph) and they are summed up here.";
+                        font-size: 13px;
+                    }
+                    if Reports.ic-days.length > 0: HorizontalLayout {
+                        spacing: 32px;
+                        VerticalLayout {
+                            width: 300px;
+                            spacing: 10px;
+                            for s in Reports.ic-stats: HorizontalLayout {
+                                spacing: 12px;
+                                VerticalLayout {
+                                    horizontal-stretch: 1;
+                                    Text {
+                                        text: s.label;
+                                        color: Theme.on-surface;
+                                    }
+                                    if s.hint != "": Caption { text: s.hint; }
+                                }
+                                Text {
+                                    text: s.value;
+                                    color: Theme.on-surface;
+                                    font-size: 16px;
+                                    font-weight: 700;
+                                    vertical-alignment: center;
+                                }
+                            }
+                        }
+                        VerticalLayout {
+                            horizontal-stretch: 1;
+                            spacing: 6px;
+                            TotalsChart {
+                                min-height: 170px;
+                                vertical-stretch: 1;
+                                days: Reports.ic-days;
+                            }
+                            HorizontalLayout {
+                                spacing: 16px;
+                                alignment: start;
+                                for item in [{ c: Theme.insulin, t: "Insulin (units)" }, { c: Theme.carbs, t: "Carbs (grams)" }]: HorizontalLayout {
+                                    spacing: 6px;
+                                    Rectangle {
+                                        width: 10px;
+                                        height: 10px;
+                                        y: (parent.height - self.height) / 2;
+                                        border-radius: 2px;
+                                        background: item.c;
+                                    }
+                                    Caption {
+                                        text: item.t;
+                                        vertical-alignment: center;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    if Reports.ic-days.length > 0: Caption { text: "Averages count only the days with entries. The totals come from your notes and are only as complete as they are."; }
                 }
             }
 
@@ -2071,6 +2146,58 @@ export component AppWindow inherits Window {
                         horizontal-stretch: 1;
                         rows: Reports.detail-tir;
                     }
+                    VerticalLayout {
+                        width: 280px;
+                        spacing: 6px;
+                        Title { text: "Notes"; }
+                        if Reports.detail-totals != "": Text {
+                            text: Reports.detail-totals;
+                            color: Theme.on-surface;
+                            font-size: 13px;
+                            font-weight: 600;
+                            wrap: word-wrap;
+                        }
+                        if Reports.detail-notes.length == 0: Caption { text: Notes.available ? "No notes on this day – click the graph to add one." : "No notes on this day."; }
+                        ListView {
+                            vertical-stretch: 1;
+                            for n in Reports.detail-notes: Rectangle {
+                                height: max(32px, row.preferred-height + 8px);
+                                border-radius: Theme.radius-s;
+                                background: note-touch.has-hover ? Theme.on-surface.with-alpha(0.06) : transparent;
+                                row := HorizontalLayout {
+                                    padding-left: 6px;
+                                    padding-right: 6px;
+                                    spacing: 8px;
+                                    Rectangle {
+                                        width: 8px;
+                                        height: 8px;
+                                        y: (parent.height - self.height) / 2;
+                                        border-radius: 4px;
+                                        background: Theme.note-color(n.kind);
+                                    }
+                                    Text {
+                                        width: 40px;
+                                        text: n.time;
+                                        color: Theme.on-surface-variant;
+                                        font-size: 12px;
+                                        vertical-alignment: center;
+                                    }
+                                    Text {
+                                        horizontal-stretch: 1;
+                                        text: n.text;
+                                        color: Theme.on-surface;
+                                        font-size: 12px;
+                                        wrap: word-wrap;
+                                        vertical-alignment: center;
+                                    }
+                                }
+                                note-touch := TouchArea {
+                                    mouse-cursor: pointer;
+                                    clicked => { Notes.edit(n); }
+                                }
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -2123,7 +2250,7 @@ export component AppWindow inherits Window {
         DialogCard {
             x: (parent.width - self.width) / 2;
             y: (parent.height - self.height) / 2;
-            width: 520px;
+            width: 580px;
             height: 420px + (Notes.treatment == 3 ? 70px : 0px) + (Notes.error != "" ? 60px : 0px);
             title: Notes.id == "" ? "Add note" : "Edit note";
             icon: Icons.note;
@@ -2141,18 +2268,27 @@ export component AppWindow inherits Window {
                     spacing: 4px;
                     Caption { text: "Treatment"; }
                     ComboBox {
+                        height: 44px;
                         model: Notes.treatments;
                         current-index <=> Notes.treatment;
                     }
                 }
                 // plain text: input-type decimal drops a typed comma ("4,5" became 45 u)
                 TextField {
-                    width: 130px;
+                    width: 100px;
                     label: "Units";
-                    placeholder: "e.g. 4.5";
+                    placeholder: "4.5";
                     suffix: "u";
                     enabled: Notes.treatment != 0;
                     text <=> Notes.units;
+                    accepted => { if Notes.can-save { Notes.save(Notes.draft()); } }
+                }
+                TextField {
+                    width: 100px;
+                    label: "Carbs";
+                    placeholder: "45";
+                    suffix: "g";
+                    text <=> Notes.carbs;
                     accepted => { if Notes.can-save { Notes.save(Notes.draft()); } }
                 }
             }
@@ -2237,13 +2373,13 @@ export component AppWindow inherits Window {
             HorizontalLayout {
                 spacing: 12px;
                 TextField {
-                    horizontal-stretch: 1;
+                    width: (parent.width - 12px) / 2;
                     label: "Password (at least 8 characters)";
                     input-type: password;
                     text <=> ExportBridge.password;
                 }
                 TextField {
-                    horizontal-stretch: 1;
+                    width: (parent.width - 12px) / 2;
                     label: "Repeat password";
                     input-type: password;
                     text <=> ExportBridge.repeat;
