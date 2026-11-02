@@ -146,9 +146,10 @@ pub fn remove_legacy_entries() -> bool {
     false
 }
 
-/// Opens a web page in the default browser (https only).
+/// Opens a web page in the default browser, or a `mailto:` draft in the mail program (other
+/// schemes are ignored).
 pub fn open_url(url: &str) {
-    if !url.starts_with("https://") {
+    if !url.starts_with("https://") && !url.starts_with("mailto:") {
         return;
     }
     #[cfg(windows)]
@@ -169,5 +170,20 @@ pub fn open_path(path: &std::path::Path) {
     let cmd = "xdg-open";
     if let Err(e) = std::process::Command::new(cmd).arg(path).spawn() {
         tracing::warn!("could not open {}: {e}", path.display());
+    }
+}
+
+/// Shows a file in the file manager (Windows: selected in Explorer; Linux: its folder).
+pub fn reveal_file(path: &std::path::Path) {
+    #[cfg(windows)]
+    let result = {
+        use std::os::windows::process::CommandExt;
+        // Explorer parses its arguments itself: the path must be quoted after the comma
+        std::process::Command::new("explorer").raw_arg(format!("/select,\"{}\"", path.display())).spawn()
+    };
+    #[cfg(not(windows))]
+    let result = std::process::Command::new("xdg-open").arg(path.parent().unwrap_or(path)).spawn();
+    if let Err(e) = result {
+        tracing::warn!("could not show {}: {e}", path.display());
     }
 }

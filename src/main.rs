@@ -4,6 +4,7 @@ mod about;
 mod alerts;
 mod config;
 mod icon;
+mod mail;
 mod migrate;
 mod platform;
 mod secrets;
@@ -329,9 +330,22 @@ fn wire_callbacks(ui: &AppWindow, tx: &mpsc::UnboundedSender<Cmd>, devlog: &devl
     let n = ui.global::<Notes>();
     n.on_now(|| ui_model::note_time_text(chrono::Utc::now()).into());
     let t = tx.clone();
-    n.on_save(move |id, when, text| send!(t, Cmd::SaveNote(id.to_string(), when.to_string(), text.to_string())));
+    n.on_save(move |draft| send!(t, Cmd::SaveNote(draft)));
     let t = tx.clone();
     n.on_delete(move |id| send!(t, Cmd::DeleteNote(id.to_string())));
+
+    let e = ui.global::<ExportBridge>();
+    let t = tx.clone();
+    e.on_save_csv(move |range| {
+        let name = format!("glucose-{}.csv", chrono::Local::now().format("%Y-%m-%d"));
+        if let Some(p) = rfd::FileDialog::new().set_file_name(name).add_filter("CSV", &["csv"]).save_file() {
+            send!(t, Cmd::ExportCsv(p, range == 1))
+        }
+    });
+    let t = tx.clone();
+    e.on_send(move |range, to, password, repeat| {
+        send!(t, Cmd::SendExport { all: range == 1, to: to.trim().to_string(), password: password.to_string(), repeat: repeat.to_string() })
+    });
 
     ui.global::<About>().on_open_link(|i| {
         if let Some(url) = about::link(i) {
@@ -371,16 +385,6 @@ fn wire_callbacks(ui: &AppWindow, tx: &mpsc::UnboundedSender<Cmd>, devlog: &devl
     b.on_import_settings(move || {
         if let Some(p) = rfd::FileDialog::new().add_filter("JSON", &["json"]).pick_file() {
             send!(t, Cmd::ImportSettings(p))
-        }
-    });
-    let t = tx.clone();
-    b.on_export_csv(move || {
-        if let Some(p) = rfd::FileDialog::new()
-            .set_file_name("glucose-readings.csv")
-            .add_filter("CSV", &["csv"])
-            .save_file()
-        {
-            send!(t, Cmd::ExportCsv(p))
         }
     });
     let t = tx.clone();

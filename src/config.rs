@@ -252,6 +252,14 @@ pub fn app_log_dir() -> PathBuf {
     }
 }
 
+/// Encrypted ZIPs created for email; local only (not in the synced log folder).
+pub fn export_dir() -> PathBuf {
+    match home_override() {
+        Some(h) => h.join("exports"),
+        None => project_dirs().data_local_dir().join("exports"),
+    }
+}
+
 impl Settings {
     pub fn load() -> Self {
         Self::load_from(&config_path()).unwrap_or_default()

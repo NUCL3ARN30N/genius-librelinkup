@@ -3,6 +3,19 @@
 The app shows the entry of its own version under **About**. Release notes on GitHub are taken
 from here as well.
 
+## [1.1.0] – 2026-11-02
+
+### Added
+- Export on the Reports page: the new **Export…** button saves the readings and notes of the selected report period (or of all data) as a CSV file, or packs them into a ZIP file encrypted with AES-256 and attaches it to a new email in your mail program (Outlook, Thunderbird and other programs that support Simple MAPI on Windows, the desktop's mail program on Linux). Tell the recipient the password another way; the file opens with 7-Zip, WinRAR or Keka.
+- Treatments in notes: a note can record rapid-acting or long-acting insulin, or a treatment you name yourself, with the units given (a decimal comma works too). Treatments are shown in the graph tooltips, included in the CSV export and import, and read from LibreView exports ("Rapid-Acting Insulin" and "Long-Acting Insulin" columns).
+
+### Changed
+- Exporting readings moved from Settings → Import & export to the Reports page.
+- Notes written by a newer version keep their extra information when they are edited here.
+
+### Fixed
+- Counts read correctly in the singular ("1 note" instead of "1 notes").
+
 ## [1.0.0] – 2026-10-31
 
 First stable release. Includes everything from 0.2.0 below.
@@ -21,4 +34,4 @@ First stable release. Includes everything from 0.2.0 below.
 
 ## [0.1.0] – 2026-10-29
 
-First release as Genius LibreLinkUp (formerly Better LibreLinkUp 0.1.1): tray readout with trend arrow, alerts, dashboard graph, encrypted glucose log with LibreView-style reports, caching server, built-in updater. Existing Better LibreLinkUp installations are migrated on the first start.
+First release of Genius LibreLinkUp: tray readout with trend arrow, alerts, dashboard graph, encrypted glucose log with LibreView-style reports, caching server, built-in updater.

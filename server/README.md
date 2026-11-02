@@ -91,14 +91,6 @@ sudo gllu-pair                    # prints a pairing code
 The service runs as the unprivileged user `gllu` with a hardened systemd unit; data lives in
 `/var/lib/gllu-server`.
 
-### Upgrading from bllu-server
-
-Up to v0.1.1 the server was called `bllu-server`. The old `BLLU_*` variables are still read when
-the `GLLU_*` one is not set. Running `install-lxc.sh` again on an existing installation moves
-`/etc/bllu-server.env` and `/var/lib/bllu-server` over and replaces the old service. With Docker,
-switch the image to `ghcr.io/nucl3arn30n/gllu-server` and keep your existing data volume mounted
-at `/data`, e.g. `volumes: { gllu-data: { external: true, name: server_bllu-data } }`.
-
 ## Configuration
 
 | Variable | Default | |

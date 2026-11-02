@@ -11,15 +11,17 @@ use tokio::time::Instant;
 use crate::alerts::{self, AlertKind, AlertState};
 use crate::api::{ApiError, Client, Connection, GLOBAL_SERVER, PendingStep, Reading, Server};
 use crate::config::{
-    Appearance, RangeColors, Settings, SyncSettings, TrayStyle, UnitPref, app_log_dir, config_path, default_log_dir, parse_hex,
+    Appearance, RangeColors, Settings, SyncSettings, TrayStyle, UnitPref, app_log_dir, config_path, default_log_dir, export_dir,
+    parse_hex,
 };
 use crate::devlog::DevLog;
 use crate::store::{Note, Store, VaultState, vault_state};
 use crate::units::{Units, level, trend_arrow};
 use crate::{
-    AppWindow, Dashboard, DevBridge, LogItem, Notes, Reports, SettingsBridge, SyncBridge, Theme, Toast, UiAppearance,
-    UiSettings, UpdateBridge, platform, secrets, stats, tray, trayicon, ui_model, updater,
+    AppWindow, Dashboard, DevBridge, ExportBridge, LogItem, NoteDraft, Notes, Reports, SettingsBridge, SyncBridge, Theme, Toast, UiAppearance,
+    UiSettings, UpdateBridge, mail, platform, secrets, stats, tray, trayicon, ui_model, updater,
 };
+use gllu_core::count;
 use gllu_core::sync::{self, ClientIdentity, PairingCode, PatientInfo, SyncClient, SyncCredentials, SyncError};
 use slint::ComponentHandle;
 
@@ -40,7 +42,10 @@ pub enum Cmd {
     RemovePassphrase(String),
     ExportSettings(std::path::PathBuf),
     ImportSettings(std::path::PathBuf),
-    ExportCsv(std::path::PathBuf),
+    /// (file, all data instead of the report period)
+    ExportCsv(std::path::PathBuf, bool),
+    /// encrypted ZIP attached to a new email
+    SendExport { all: bool, to: String, password: String, repeat: String },
     ImportCsv(std::path::PathBuf),
     OpenDataFolder,
     ClearDevLog,
@@ -52,8 +57,7 @@ pub enum Cmd {
     OpenReleasePage,
     UpdateOptions(bool),
     OpenDay(i32),
-    /// (id – empty for a new note, time as typed, text)
-    SaveNote(String, String, String),
+    SaveNote(NoteDraft),
     DeleteNote(String),
     /// Deletes everything stored on this computer (true: including the glucose log), then quits.
     WipeLocalData(bool),
@@ -313,9 +317,9 @@ impl Worker {
             (None, true, true) => "The log is locked.".into(),
             (None, true, false) => "The log is not loaded in this session.".into(),
             (Some(st), _, _) => format!(
-                "{} readings and {} notes since {} in {} · {}",
-                st.len(),
-                st.note_count(),
+                "{} and {} since {} in {} · {}",
+                count(st.len(), "reading"),
+                count(st.note_count(), "note"),
                 st.first_time().map(|t| t.with_timezone(&Local).format("%d %b %Y").to_string()).unwrap_or("–".into()),
                 st.dir().display(),
                 if st.is_encrypted() { "encrypted (XChaCha20-Poly1305, Argon2id)" } else { "not encrypted" }
@@ -325,8 +329,10 @@ impl Worker {
         let log_path: SharedString = app_log_dir().display().to_string().into();
         let log_folder: SharedString = s.log_dir().display().to_string().into();
         let notes_available = self.store.as_ref().is_some_and(|st| st.notes_error().is_none());
+        let export_available = self.store.is_some();
         self.ui(move |w| {
             w.global::<Notes>().set_available(notes_available);
+            w.global::<ExportBridge>().set_available(export_available);
             let b = w.global::<SettingsBridge>();
             b.set_settings(ui);
             b.set_log_folder(log_folder);
@@ -743,6 +749,11 @@ impl Worker {
             platform::unregister_notifications();
         }
 
+        if let Err(e) = std::fs::remove_dir_all(export_dir())
+            && e.kind() != std::io::ErrorKind::NotFound
+        {
+            failed.push(format!("{}: {e}", export_dir().display()));
+        }
         let cfg = config_path();
         remove_file(&cfg, &mut failed);
         remove_file(&cfg.with_extension("json.tmp"), &mut failed);
@@ -1186,16 +1197,20 @@ impl Worker {
                 }
                 Err(e) => self.settings_message(format!("Import failed: {e:#}")),
             },
-            Cmd::ExportCsv(path) => {
+            Cmd::ExportCsv(path, all) => {
+                let range = self.export_range(all);
                 let res = match &self.store {
-                    Some(st) => st.export_csv(&path),
+                    Some(st) => st.export_csv(&path, range),
                     None => Err(anyhow::anyhow!("the log is not loaded")),
                 };
                 match res {
-                    Ok((readings, notes)) => self.settings_message(format!("Exported {readings} readings and {notes} notes")),
+                    Ok((readings, notes)) => {
+                        self.settings_message(format!("Exported {} and {}", count(readings, "reading"), count(notes, "note")))
+                    }
                     Err(e) => self.settings_message(format!("Export failed: {e:#}")),
                 }
             }
+            Cmd::SendExport { all, to, password, repeat } => self.send_export(all, to, &password, &repeat),
             Cmd::ImportCsv(path) => {
                 let res = match &mut self.store {
                     Some(st) => st.import_csv(&path),
@@ -1203,7 +1218,7 @@ impl Worker {
                 };
                 match res {
                     Ok(n) => {
-                        self.settings_message(format!("Imported {} new readings and {} notes", n.readings, n.notes));
+                        self.settings_message(format!("Imported {} and {}", count(n.readings, "new reading"), count(n.notes, "note")));
                         self.push_report();
                         self.push_dashboard();
                         self.push_settings();
@@ -1248,9 +1263,9 @@ impl Worker {
                 platform::open_url(&url);
             }
             Cmd::OpenDay(key) => self.open_day(key, false),
-            Cmd::SaveNote(id, when, text) => {
-                let result = self.save_note(&id, &when, &text);
-                self.note_done(result, if id.is_empty() { "Note added" } else { "Note saved" });
+            Cmd::SaveNote(draft) => {
+                let result = self.save_note(&draft);
+                self.note_done(result, if draft.id.is_empty() { "Note added" } else { "Note saved" });
             }
             Cmd::DeleteNote(id) => {
                 let result = match &mut self.store {
@@ -1292,19 +1307,101 @@ impl Worker {
         }
     }
 
-    fn save_note(&mut self, id: &str, when: &str, text: &str) -> anyhow::Result<()> {
-        let time = ui_model::parse_note_time(when)
+    fn save_note(&mut self, d: &NoteDraft) -> anyhow::Result<()> {
+        let time = ui_model::parse_note_time(&d.when)
             .ok_or_else(|| anyhow::anyhow!("enter the time as YYYY-MM-DD HH:MM, or HH:MM for today"))?;
         if time > Utc::now() + Duration::days(1) {
             anyhow::bail!("the time is more than a day in the future");
         }
+        let treatment = ui_model::treatment_from_ui(d.treatment, &d.treatment_name, &d.units)?;
         let st = self.store.as_mut().ok_or_else(|| anyhow::anyhow!("the glucose log is not loaded"))?;
-        if id.is_empty() {
-            st.add_note(time, text)?;
+        if d.id.is_empty() {
+            st.add_note(time, &d.text, treatment)?;
         } else {
-            st.edit_note(id, time, text)?;
+            st.edit_note(&d.id, time, &d.text, treatment)?;
         }
         st.flush()
+    }
+
+    /// The export range: the selected report period, or everything (`None`).
+    fn export_range(&self, all: bool) -> Option<(DateTime<Utc>, DateTime<Utc>)> {
+        (!all).then(|| (self.report_from(), Utc::now() + Duration::minutes(1)))
+    }
+
+    /// First and last local date of an export, as YYYY-MM-DD.
+    fn export_dates(&self, all: bool) -> (String, String) {
+        let date = |t: DateTime<Utc>| t.with_timezone(&Local).format("%Y-%m-%d").to_string();
+        let st = self.store.as_ref();
+        let from = if all { st.and_then(Store::first_time).unwrap_or_else(Utc::now) } else { self.report_from() };
+        let to = if all { st.and_then(Store::last_time).unwrap_or_else(Utc::now) } else { Utc::now() };
+        (date(from), date(to))
+    }
+
+    /// Where the email ZIPs go (a throw-away folder in demo mode).
+    fn export_folder(&self) -> std::path::PathBuf {
+        if self.demo {
+            std::env::temp_dir().join(format!("genius-librelinkup-demo-exports-{}", std::process::id()))
+        } else {
+            export_dir()
+        }
+    }
+
+    /// Writes the encrypted ZIP and opens a new email with it attached; errors stay in the dialog.
+    fn send_export(&mut self, all: bool, to: String, password: &str, repeat: &str) {
+        self.ui(|w| w.global::<ExportBridge>().set_busy(true));
+        let result = (|| -> anyhow::Result<mail::Draft> {
+            gllu_core::export::check_password(password, repeat)?;
+            let st = self.store.as_ref().ok_or_else(|| anyhow::anyhow!("the glucose log is not loaded"))?;
+            let (csv, readings, notes) = st.csv(self.export_range(all))?;
+            if readings == 0 && notes == 0 {
+                anyhow::bail!("there is no data in this period");
+            }
+            let (from, to_date) = self.export_dates(all);
+            let stem = format!("glucose-{from}_{to_date}");
+            let dir = self.export_folder();
+            std::fs::create_dir_all(&dir)?;
+            let path = dir.join(format!("{stem}.zip"));
+            gllu_core::export::write_encrypted_zip(&path, &[(&format!("{stem}.csv"), &csv)], password)?;
+            Ok(mail::Draft {
+                to,
+                subject: format!("Glucose data {from} – {to_date}"),
+                body: format!(
+                    "Hello,\n\nattached are my glucose data from {from} to {to_date} ({} and {}) as an encrypted ZIP file. \
+                     I will send you the password separately.\n\nThe file opens with 7-Zip, WinRAR or Keka.\n\n\
+                     Created with Genius LibreLinkUp (not a medical device).\n",
+                    count(readings, "reading"),
+                    count(notes, "note"),
+                ),
+                attachment: path,
+            })
+        })();
+        match result {
+            Ok(draft) => {
+                self.ui(|w| {
+                    let e = w.global::<ExportBridge>();
+                    e.set_busy(false);
+                    e.set_open(false);
+                });
+                let ui = self.ui.clone();
+                // blocks on Windows while the mail dialog is open
+                std::thread::spawn(move || {
+                    let msg = match mail::compose(&draft) {
+                        mail::Outcome::Opened => "Email created – tell the recipient the password another way",
+                        mail::Outcome::Cancelled => "The email was cancelled",
+                        mail::Outcome::Manual => "No mail program took the attachment – attach the ZIP shown in the file manager",
+                    };
+                    let _ = ui.upgrade_in_event_loop(move |w| w.global::<Toast>().set_message(msg.into()));
+                });
+            }
+            Err(e) => {
+                let text = capitalized(&format!("{e:#}"));
+                self.ui(move |w| {
+                    let e = w.global::<ExportBridge>();
+                    e.set_busy(false);
+                    e.set_error(text.into());
+                });
+            }
+        }
     }
 
     /// Closes the note dialog and redraws everything that shows notes, or shows the error in
@@ -1322,10 +1419,7 @@ impl Worker {
                 self.push_settings();
             }
             Err(e) => {
-                let mut text = format!("{e:#}");
-                if let Some(first) = text.get(..1) {
-                    text = first.to_uppercase() + &text[1..];
-                }
+                let text = capitalized(&format!("{e:#}"));
                 self.ui(move |w| w.global::<Notes>().set_error(text.into()));
             }
         }
@@ -1410,6 +1504,12 @@ impl Worker {
             self.schedule_poll(1);
         }
     }
+}
+
+/// Error text for the UI: anyhow messages are lower-case.
+fn capitalized(text: &str) -> String {
+    let mut c = text.chars();
+    c.next().map(|f| f.to_uppercase().collect::<String>() + c.as_str()).unwrap_or_default()
 }
 
 // ---------------------------------------------------------------- demo mode

@@ -6,7 +6,7 @@ use slint::SharedString;
 
 use crate::api::Reading;
 use crate::stats::{self, Light, Report};
-use crate::store::Note;
+use crate::store::{Note, Treatment, TreatmentKind, fmt_units};
 use crate::units::{Units, level};
 use crate::{AxisLabel, DayCard, Dot, GraphPoint, Insight, NoteMark, StatItem, TirRow};
 
@@ -104,13 +104,48 @@ pub fn nearest_index(len: usize, x_at: impl Fn(usize) -> f32, x: f32, max_dx: f3
 
 pub fn note_mark(n: &Note, x: f32, time_format: &str) -> NoteMark {
     let t = n.at().with_timezone(&Local);
+    let (treatment, treatment_name, units) = match &n.treatment {
+        None => (0, String::new(), String::new()),
+        Some(tr) => (
+            match tr.kind {
+                TreatmentKind::RapidActing => 1,
+                TreatmentKind::LongActing => 2,
+                TreatmentKind::Custom => 3,
+            },
+            tr.name.clone(),
+            tr.units.map(fmt_units).unwrap_or_default(),
+        ),
+    };
     NoteMark {
         x,
         id: s(n.id.clone()),
         time: s(t.format(time_format).to_string()),
         when: s(t.format(NOTE_TIME_FORMAT).to_string()),
-        text: s(n.text.clone()),
+        text: s(n.summary()),
+        note: s(n.text.clone()),
+        treatment,
+        treatment_name: s(treatment_name),
+        units: s(units),
     }
+}
+
+/// The treatment chosen in the note dialog (index as in `Notes.treatments`) with the units as
+/// typed (decimal point or comma).
+pub fn treatment_from_ui(index: i32, name: &str, units: &str) -> anyhow::Result<Option<Treatment>> {
+    let units = units.trim();
+    let units = if units.is_empty() {
+        None
+    } else {
+        Some(units.replace(',', ".").parse::<f32>().map_err(|_| anyhow::anyhow!("enter the units as a number, e.g. 4.5"))?)
+    };
+    let kind = match index {
+        1 => TreatmentKind::RapidActing,
+        2 => TreatmentKind::LongActing,
+        3 => TreatmentKind::Custom,
+        _ if units.is_some() => anyhow::bail!("choose a treatment for the units"),
+        _ => return Ok(None),
+    };
+    Treatment::new(kind, name, units).map(Some)
 }
 
 pub struct GraphModel {
@@ -604,5 +639,17 @@ mod tests {
         assert_eq!((today.date_naive(), today.hour(), today.minute()), (Local::now().date_naive(), 7, 5));
         assert!(parse_note_time("tomorrow").is_none());
         assert!(parse_note_time("25:00").is_none());
+    }
+
+    #[test]
+    fn treatment_units_accept_a_decimal_comma() {
+        let t = treatment_from_ui(1, "", " 4,5 ").unwrap().unwrap();
+        assert_eq!((t.kind, t.units), (TreatmentKind::RapidActing, Some(4.5)));
+        assert_eq!(treatment_from_ui(2, "", "4.5").unwrap().unwrap().units, Some(4.5));
+        assert_eq!(treatment_from_ui(0, "", "").unwrap(), None);
+        assert!(treatment_from_ui(0, "", "3").is_err());
+        assert!(treatment_from_ui(1, "", "four").is_err());
+        assert!(treatment_from_ui(3, " ", "").is_err());
+        assert_eq!(treatment_from_ui(3, "Glucagon", "").unwrap().unwrap().label(), "Glucagon");
     }
 }

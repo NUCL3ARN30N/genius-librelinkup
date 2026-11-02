@@ -127,6 +127,16 @@ export global Reports {
     callback open-day(int);
 }
 
+// What the note dialog sends to Rust; `units` is the text as typed ("4,5" or "4.5").
+export struct NoteDraft {
+    id: string,
+    when: string,
+    text: string,
+    treatment: int,
+    treatment-name: string,
+    units: string,
+}
+
 // Notes at a point in time, kept in the glucose log folder. The dialog edits the in-out fields;
 // Rust closes it once the note is saved.
 export global Notes {
@@ -137,25 +147,66 @@ export global Notes {
     // "2026-10-29 14:30"
     in-out property <string> when;
     in-out property <string> text;
+    // 0 none, 1 rapid-acting insulin, 2 long-acting insulin, 3 custom (named) treatment
+    in-out property <int> treatment;
+    in-out property <string> treatment-name;
+    in-out property <string> units;
     in-out property <string> error;
+    in property <[string]> treatments: ["None", "Rapid-acting insulin", "Long-acting insulin", "Custom…"];
     callback now() -> string;
-    callback save(string, string, string);
+    callback save(NoteDraft);
     callback delete(string);
+
+    out property <bool> can-save: Notes.text != "" || Notes.treatment != 0;
+    public function draft() -> NoteDraft {
+        return { id: Notes.id, when: Notes.when, text: Notes.text, treatment: Notes.treatment, treatment-name: Notes.treatment-name, units: Notes.units };
+    }
 
     // empty `when`: now
     public function compose(when: string) {
         Notes.id = "";
         Notes.when = when != "" ? when : Notes.now();
         Notes.text = "";
+        Notes.treatment = 0;
+        Notes.treatment-name = "";
+        Notes.units = "";
         Notes.error = "";
         Notes.open = true;
     }
     public function edit(n: NoteMark) {
         Notes.id = n.id;
         Notes.when = n.when;
-        Notes.text = n.text;
+        Notes.text = n.note;
+        Notes.treatment = n.treatment;
+        Notes.treatment-name = n.treatment-name;
+        Notes.units = n.units;
         Notes.error = "";
         Notes.open = true;
+    }
+}
+
+// The export dialog on the Reports page: a CSV file, or an encrypted ZIP attached to an email.
+export global ExportBridge {
+    // a glucose log is loaded
+    in property <bool> available;
+    in-out property <bool> open;
+    // 0 the selected report period, 1 all data
+    in-out property <int> range;
+    in-out property <string> recipient;
+    in-out property <string> password;
+    in-out property <string> repeat;
+    in-out property <string> error;
+    in property <bool> busy;
+    // (range)
+    callback save-csv(int);
+    // (range, recipient, password, repeat)
+    callback send(int, string, string, string);
+
+    public function show() {
+        ExportBridge.password = "";
+        ExportBridge.repeat = "";
+        ExportBridge.error = "";
+        ExportBridge.open = true;
     }
 }
 
@@ -190,7 +241,6 @@ export global SettingsBridge {
     callback remove-passphrase(string);
     callback export-settings();
     callback import-settings();
-    callback export-csv();
     callback import-csv();
     callback open-data-folder();
     callback logout();
@@ -460,6 +510,13 @@ component ReportsPage inherits Rectangle {
             PageHeader {
                 title: "Glucose report";
                 subtitle: Reports.subtitle;
+                if ExportBridge.available: MButton {
+                    y: (parent.height - self.height) / 2;
+                    text: "Export…";
+                    kind: 2;
+                    icon: Icons.download;
+                    clicked => { ExportBridge.show(); }
+                }
                 Segmented {
                     y: (parent.height - self.height) / 2;
                     width: 300px;
@@ -978,17 +1035,12 @@ component SettingsPage inherits Rectangle {
                         spacing: 8px;
                         alignment: start;
                         MButton {
-                            text: "Export readings (CSV)…";
-                            kind: 2;
-                            clicked => { SettingsBridge.export-csv(); }
-                        }
-                        MButton {
                             text: "Import readings (CSV / LibreView)…";
                             kind: 2;
                             clicked => { SettingsBridge.import-csv(); }
                         }
                     }
-                    Caption { text: "Tip: import a LibreView \"Download glucose data\" CSV to backfill history older than 12 hours."; }
+                    Caption { text: "Tip: import a LibreView \"Download glucose data\" CSV to backfill history older than 12 hours. Readings and notes are exported on the Reports page (Export…)."; }
                 }
 
                 SettingsSection {
@@ -2071,21 +2123,49 @@ export component AppWindow inherits Window {
         DialogCard {
             x: (parent.width - self.width) / 2;
             y: (parent.height - self.height) / 2;
-            width: 480px;
-            height: Notes.error != "" ? 390px : 330px;
+            width: 520px;
+            height: 420px + (Notes.treatment == 3 ? 70px : 0px) + (Notes.error != "" ? 60px : 0px);
             title: Notes.id == "" ? "Add note" : "Edit note";
             icon: Icons.note;
             init => { note-text.focus-input(); }
             note-text := TextField {
                 label: "Note";
-                placeholder: "e.g. pizza, 6 u insulin, 30 min walk";
+                placeholder: "e.g. pizza, 30 min walk";
                 text <=> Notes.text;
-                accepted => { Notes.save(Notes.id, Notes.when, Notes.text); }
+                accepted => { if Notes.can-save { Notes.save(Notes.draft()); } }
+            }
+            HorizontalLayout {
+                spacing: 12px;
+                VerticalLayout {
+                    horizontal-stretch: 1;
+                    spacing: 4px;
+                    Caption { text: "Treatment"; }
+                    ComboBox {
+                        model: Notes.treatments;
+                        current-index <=> Notes.treatment;
+                    }
+                }
+                // plain text: input-type decimal drops a typed comma ("4,5" became 45 u)
+                TextField {
+                    width: 130px;
+                    label: "Units";
+                    placeholder: "e.g. 4.5";
+                    suffix: "u";
+                    enabled: Notes.treatment != 0;
+                    text <=> Notes.units;
+                    accepted => { if Notes.can-save { Notes.save(Notes.draft()); } }
+                }
+            }
+            if Notes.treatment == 3: TextField {
+                label: "Custom treatment";
+                placeholder: "e.g. inhaled insulin, glucagon";
+                text <=> Notes.treatment-name;
+                accepted => { if Notes.can-save { Notes.save(Notes.draft()); } }
             }
             TextField {
                 label: "Time (YYYY-MM-DD HH:MM, or just HH:MM for today)";
                 text <=> Notes.when;
-                accepted => { Notes.save(Notes.id, Notes.when, Notes.text); }
+                accepted => { if Notes.can-save { Notes.save(Notes.draft()); } }
             }
             if Notes.error != "": Banner { text: Notes.error; }
             Rectangle { vertical-stretch: 1; }
@@ -2107,8 +2187,91 @@ export component AppWindow inherits Window {
                     text: "Save";
                     kind: 0;
                     icon: Icons.check;
-                    enabled: Notes.text != "";
-                    clicked => { Notes.save(Notes.id, Notes.when, Notes.text); }
+                    enabled: Notes.can-save;
+                    clicked => { Notes.save(Notes.draft()); }
+                }
+            }
+        }
+    }
+
+    if ExportBridge.open: Overlay {
+        DialogCard {
+            x: (parent.width - self.width) / 2;
+            y: (parent.height - self.height) / 2;
+            width: 560px;
+            height: ExportBridge.error != "" ? 650px : 590px;
+            title: "Export glucose data";
+            icon: Icons.download;
+            Caption {
+                text: "Readings and notes of the chosen period as a CSV file – it opens in Excel or LibreOffice and can be imported here again.";
+                font-size: 13px;
+            }
+            Segmented {
+                options: ["Last " + [7, 14, 30, 90][Reports.period-index] + " days", "All data"];
+                selected <=> ExportBridge.range;
+            }
+            HorizontalLayout {
+                alignment: start;
+                MButton {
+                    text: "Save CSV…";
+                    kind: 1;
+                    icon: Icons.download;
+                    enabled: !ExportBridge.busy;
+                    clicked => { ExportBridge.save-csv(ExportBridge.range); }
+                }
+            }
+            Rectangle {
+                height: 1px;
+                background: Theme.outline-variant;
+            }
+            Title { text: "Send by email"; }
+            Caption {
+                text: "The data is packed into a ZIP file encrypted with AES-256 and attached to a new message in your mail program. Tell the recipient the password another way (phone, messenger) – the file opens with 7-Zip, WinRAR or Keka.";
+                font-size: 13px;
+            }
+            TextField {
+                label: "To (optional)";
+                placeholder: "doctor@example.com";
+                text <=> ExportBridge.recipient;
+            }
+            HorizontalLayout {
+                spacing: 12px;
+                TextField {
+                    horizontal-stretch: 1;
+                    label: "Password (at least 8 characters)";
+                    input-type: password;
+                    text <=> ExportBridge.password;
+                }
+                TextField {
+                    horizontal-stretch: 1;
+                    label: "Repeat password";
+                    input-type: password;
+                    text <=> ExportBridge.repeat;
+                    accepted => { ExportBridge.send(ExportBridge.range, ExportBridge.recipient, ExportBridge.password, ExportBridge.repeat); }
+                }
+            }
+            if ExportBridge.error != "": Banner { text: ExportBridge.error; }
+            Rectangle { vertical-stretch: 1; }
+            HorizontalLayout {
+                spacing: 8px;
+                if ExportBridge.busy: Spinner {
+                    width: 28px;
+                    height: 28px;
+                    y: (parent.height - self.height) / 2;
+                    indeterminate: true;
+                }
+                Rectangle { horizontal-stretch: 1; }
+                MButton {
+                    text: "Close";
+                    kind: 3;
+                    clicked => { ExportBridge.open = false; }
+                }
+                MButton {
+                    text: "Create email";
+                    kind: 0;
+                    icon: Icons.mail;
+                    enabled: !ExportBridge.busy && ExportBridge.password != "";
+                    clicked => { ExportBridge.send(ExportBridge.range, ExportBridge.recipient, ExportBridge.password, ExportBridge.repeat); }
                 }
             }
         }

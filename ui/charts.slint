@@ -25,12 +25,18 @@ export struct GraphPoint {
     when: string,
 }
 
+// `text` is the one-line summary (treatment and note) shown in tooltips; `note`, `treatment`
+// (0 none, 1 rapid-acting, 2 long-acting, 3 custom), `treatment-name` and `units` fill the dialog.
 export struct NoteMark {
     x: float,
     id: string,
     time: string,
     when: string,
     text: string,
+    note: string,
+    treatment: int,
+    treatment-name: string,
+    units: string,
 }
 
 // Lookups for hovering; implemented in Rust (binary search over the sorted x positions).
